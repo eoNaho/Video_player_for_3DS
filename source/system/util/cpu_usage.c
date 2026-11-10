@@ -10,6 +10,8 @@
 #include "3ds.h"
 
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
+#include "system/sem.h"
 #include "system/util/err_types.h"
 #include "system/util/log.h"
 #include "system/util/thread_types.h"
@@ -23,7 +25,7 @@
 #define CPU_USAGE_WIDTH			(float)(100)		//Element width for CPU usage info in px.
 #define CPU_USAGE_HEIGHT		(float)(60)			//Element height for CPU usage info in px.
 
-#define FONT_SIZE_CPU_USAGE		(float)(11.00)		//Font size for CPU usage info in px.
+#define FONT_SIZE_CPU_USAGE		(float)(UI_THEME_FONT_CAPTION)		//Font size for CPU usage info in px.
 
 //Typedefs.
 //N/A.
@@ -148,9 +150,11 @@ void Util_cpu_usage_draw(void)
 	uint32_t char_length = 0;
 	char msg_cache[128] = { 0, };
 	Draw_image_data background = Draw_get_empty_image();
+	Sem_config config = { 0, };
 
 	if(!util_cpu_usage_init)
 		return;
+	Sem_get_config(&config);
 
 	//%f expects double.
 	char_length = snprintf(msg_cache, sizeof(msg_cache), "CPU: %.1f%%", (double)Util_cpu_usage_get_cpu_usage(DEF_CPU_USAGE_ALL_CORES));
@@ -159,8 +163,9 @@ void Util_cpu_usage_draw(void)
 
 	snprintf(&msg_cache[char_length], (sizeof(msg_cache) - char_length), "\n(#1 max: %" PRIu8 "%%)", Util_cpu_usage_get_core_1_limit());
 
-	Draw_with_scale_c(msg_cache, CPU_USAGE_X, CPU_USAGE_Y, FONT_SIZE_CPU_USAGE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT, DEF_DRAW_BLACK,
-	DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, CPU_USAGE_WIDTH, CPU_USAGE_HEIGHT, DRAW_BACKGROUND_UNDER_TEXT, &background, DEF_DRAW_WEAK_WHITE);
+	Draw_with_scale_c(msg_cache, CPU_USAGE_X, CPU_USAGE_Y, FONT_SIZE_CPU_USAGE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT,
+	UI_THEME_COLOR_MODE(config.is_night, TEXT), DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, CPU_USAGE_WIDTH, CPU_USAGE_HEIGHT,
+	DRAW_BACKGROUND_UNDER_TEXT, &background, UI_THEME_COLOR_MODE(config.is_night, SURFACE));
 }
 
 Result __wrap_APT_SetAppCpuTimeLimit(uint32_t percent)

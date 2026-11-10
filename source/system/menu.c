@@ -10,6 +10,7 @@
 
 #include "system/sem.h"
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
 #include "system/draw/exfont.h"
 #include "system/util/cpu_usage.h"
 #include "system/util/curl.h"
@@ -75,7 +76,7 @@
 #define FONT_SIZE_CLOSE_BUTTON		(float)(15.00)	//Font size for close buttons.
 #endif //(defined(DEF_VID_ENABLE) || defined(DEF_FTPD_ENABLE) || defined(DEF_SAPP2_ENABLE) || defined(DEF_SAPP3_ENABLE) || defined(DEF_SAPP4_ENABLE) || defined(DEF_SAPP5_ENABLE) || defined(DEF_SAPP6_ENABLE) || defined(DEF_SAPP7_ENABLE))
 #if (defined(DEF_VID_ENABLE_NAME) || defined(DEF_FTPD_ENABLE_NAME) || defined(DEF_SAPP2_ENABLE_NAME) || defined(DEF_SAPP3_ENABLE_NAME) || defined(DEF_SAPP4_ENABLE_NAME) || defined(DEF_SAPP5_ENABLE_NAME) || defined(DEF_SAPP6_ENABLE_NAME) || defined(DEF_SAPP7_ENABLE_NAME))
-#define FONT_SIZE_SUB_APP_NAME		(float)(12.00)	//Font size for sub application names.
+#define FONT_SIZE_SUB_APP_NAME		(float)(13.50)	//Font size for sub application names.
 #endif //(defined(DEF_VID_ENABLE_NAME) || defined(DEF_FTPD_ENABLE_NAME) || defined(DEF_SAPP2_ENABLE_NAME) || defined(DEF_SAPP3_ENABLE_NAME) || defined(DEF_SAPP4_ENABLE_NAME) || defined(DEF_SAPP5_ENABLE_NAME) || defined(DEF_SAPP6_ENABLE_NAME) || defined(DEF_SAPP7_ENABLE_NAME))
 
 //Typedefs.
@@ -122,6 +123,7 @@ static bool menu_main_run = true;
 static bool menu_must_exit = false;
 static bool menu_check_exit_request = false;
 static bool menu_update_available = false;
+static bool menu_dark_theme = false;
 static bool menu_init_request[APP_MAX] = { 0, };
 static bool menu_exit_request[APP_MAX] = { 0, };
 static uint32_t menu_icon_texture_id[APP_MAX] = { 0, };
@@ -135,6 +137,25 @@ static Draw_image_data menu_sem_icon_image[2] = { 0, };
 static Draw_image_data menu_sapp_button[APP_MAX] = { 0, };
 static Draw_image_data menu_sapp_close_button[APP_MAX] = { 0, };
 static Draw_image_data menu_sem_button = { 0, };
+
+static uint32_t Menu_app_text_color(Menu_app app, uint32_t default_color)
+{
+	return menu_sapp_button[app].selected
+		? (menu_dark_theme ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_LIGHT_ACCENT)
+		: default_color;
+}
+
+static void Menu_draw_app_tile(Draw_image_data* button, float x, float y, float width, float height)
+{
+	Draw_image_data background = Draw_get_empty_image();
+	uint32_t surface = menu_dark_theme ? UI_THEME_COLOR_SURFACE : UI_THEME_COLOR_LIGHT_SURFACE;
+	uint32_t surface_alt = menu_dark_theme ? UI_THEME_COLOR_SURFACE_ALT : UI_THEME_COLOR_LIGHT_SURFACE_ALT;
+	uint32_t accent = menu_dark_theme ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_LIGHT_ACCENT;
+	Draw_texture(button, button->selected ? surface_alt : surface,
+	x, y, width, height);
+	if (button->selected)
+		Draw_texture(&background, accent, x, y, width, 3);
+}
 
 #if (DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
 #if DEF_SEM_ENABLE_SEND_APP_INFO
@@ -230,6 +251,7 @@ void Menu_init(void)
 	Sem_suspend();
 	Sem_get_config(&config);
 	Sem_get_state(&state);
+	menu_dark_theme = config.is_night;
 
 	if(config.screen_mode == DEF_SEM_SCREEN_MODE_AUTO)
 	{
@@ -247,9 +269,9 @@ void Menu_init(void)
 
 	//Init screen.
 	Draw_frame_ready();
-	Draw_screen_ready(DRAW_SCREEN_TOP_LEFT, DEF_DRAW_WHITE);
+	Draw_screen_ready(DRAW_SCREEN_TOP_LEFT, config.is_night ? UI_THEME_COLOR_BACKGROUND : UI_THEME_COLOR_LIGHT_BACKGROUND);
 	Draw_top_ui(false, false, DEF_SEM_WIFI_SIGNAL_DISABLED, 0, NULL);
-	Draw_screen_ready(DRAW_SCREEN_BOTTOM, DEF_DRAW_WHITE);
+	Draw_screen_ready(DRAW_SCREEN_BOTTOM, config.is_night ? UI_THEME_COLOR_BACKGROUND : UI_THEME_COLOR_LIGHT_BACKGROUND);
 	Draw_bot_ui();
 	Draw_apply_draw();
 	Sem_draw_init();
@@ -527,8 +549,8 @@ void Menu_main(void)
 {
 	bool is_800px = false;
 	bool is_3d = false;
-	uint32_t color = DEF_DRAW_BLACK;
-	uint32_t back_color = DEF_DRAW_WHITE;
+	uint32_t color = UI_THEME_COLOR_LIGHT_TEXT;
+	uint32_t back_color = UI_THEME_COLOR_LIGHT_BACKGROUND;
 	Sem_config config = { 0, };
 	Sem_state state = { 0, };
 
@@ -589,12 +611,9 @@ void Menu_main(void)
 		if(Util_watch_is_changed(watch_handle_bit) || Draw_is_refresh_needed() || !config.is_eco)
 		{
 			Draw_set_refresh_needed(false);
-
-			if (config.is_night)
-			{
-				color = DEF_DRAW_WHITE;
-				back_color = DEF_DRAW_BLACK;
-			}
+			menu_dark_theme = config.is_night;
+			color = config.is_night ? UI_THEME_COLOR_TEXT : UI_THEME_COLOR_LIGHT_TEXT;
+			back_color = config.is_night ? UI_THEME_COLOR_BACKGROUND : UI_THEME_COLOR_LIGHT_BACKGROUND;
 
 			Draw_frame_ready();
 			Draw_screen_ready(DRAW_SCREEN_TOP_LEFT, back_color);
@@ -602,12 +621,14 @@ void Menu_main(void)
 			if(menu_check_exit_request)
 			{
 				Draw_align(&menu_msg[MSG_EXIST], 0, 105, FONT_SIZE_EXIT_CHECK, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 400, 20);
-				Draw_align(&menu_msg[MSG_CONFIRM], 10, 140, FONT_SIZE_EXIT_CHECK, DEF_DRAW_LIME, DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_CENTER, 190, 20);
-				Draw_align(&menu_msg[MSG_CANCEL], 210, 140, FONT_SIZE_EXIT_CHECK, DEF_DRAW_RED, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER, 190, 20);
+				Draw_align(&menu_msg[MSG_CONFIRM], 10, 140, FONT_SIZE_EXIT_CHECK,
+				config.is_night ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_LIGHT_ACCENT,
+				DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_CENTER, 190, 20);
+				Draw_align(&menu_msg[MSG_CANCEL], 210, 140, FONT_SIZE_EXIT_CHECK, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER, 190, 20);
 			}
 			else if(menu_update_available)
 			{
-				Draw(&menu_msg[MSG_NEW_VERSION], 10, 30, FONT_SIZE_NEW_VERSION, DEF_DRAW_RED);
+				Draw(&menu_msg[MSG_NEW_VERSION], 10, 30, FONT_SIZE_NEW_VERSION, config.is_night ? UI_THEME_COLOR_WARNING : UI_THEME_COLOR_LIGHT_WARNING);
 				Draw(&menu_msg[MSG_HOW_TO_UPDATE], 10, 60, FONT_SIZE_HOW_TO_UPDATE, color);
 			}
 
@@ -637,148 +658,149 @@ void Menu_main(void)
 			Draw_screen_ready(DRAW_SCREEN_BOTTOM, back_color);
 
 #ifdef DEF_VID_ENABLE
-			Draw_texture(&menu_sapp_button[APP_VID], menu_sapp_button[APP_VID].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 110, 60, 100, 100);
+			Menu_draw_app_tile(&menu_sapp_button[APP_VID], 110, 60, 100, 100);
 
 #ifdef DEF_VID_ENABLE_ICON
 			Draw_texture(&menu_icon_image[APP_VID], DEF_DRAW_NO_COLOR, 110, 60, 100, 100);
 #endif //DEF_VID_ENABLE_ICON
 #ifdef DEF_VID_ENABLE_NAME
-			Draw_align_c(DEF_VID_NAME, 110, 60, FONT_SIZE_SUB_APP_NAME, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 100, 100);
+			Draw_align_c(DEF_VID_NAME, 110, 60, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_VID, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 100, 100);
 #endif //DEF_VID_ENABLE_NAME
 
 			if(Vid_query_init_flag())
 			{
-				Draw_with_background_c("X", 195, 60, FONT_SIZE_CLOSE_BUTTON, DEF_DRAW_RED, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
-				15, 15, DRAW_BACKGROUND_ENTIRE_BOX, &menu_sapp_close_button[APP_VID], menu_sapp_close_button[APP_VID].selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED);
+				Draw_with_background_c("X", 195, 60, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
+				15, 15, DRAW_BACKGROUND_ENTIRE_BOX, &menu_sapp_close_button[APP_VID], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
 			}
 #endif //DEF_VID_ENABLE
 
 #ifdef DEF_FTPD_ENABLE
-			Draw_texture(&menu_sapp_button[APP_FTPD], menu_sapp_button[APP_FTPD].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 0, 0, 60, 60);
+			Menu_draw_app_tile(&menu_sapp_button[APP_FTPD], 0, 0, 60, 60);
 
 #ifdef DEF_FTPD_ENABLE_ICON
 			Draw_texture(&menu_icon_image[APP_FTPD], DEF_DRAW_NO_COLOR, 0, 0, 60, 60);
 #endif //DEF_FTPD_ENABLE_ICON
 #ifdef DEF_FTPD_ENABLE_NAME
-			Draw_align_c(DEF_FTPD_NAME, 0, 0, FONT_SIZE_SUB_APP_NAME, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Draw_align_c(DEF_FTPD_NAME, 0, 0, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_FTPD, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
 #endif //DEF_FTPD_ENABLE_NAME
 
 			if(Ftpd_query_init_flag())
 			{
-				Draw_texture(&menu_sapp_close_button[APP_FTPD], menu_sapp_close_button[APP_FTPD].selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 45, 0, 15, 15.0);
-				Draw_c("X", 47.5, 0, FONT_SIZE_CLOSE_BUTTON, DEF_DRAW_RED);
+				Draw_texture(&menu_sapp_close_button[APP_FTPD], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 45, 0, 15, 15.0);
+				Draw_c("X", 47.5, 0, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
 			}
 #endif //DEF_FTPD_ENABLE
 
 #ifdef DEF_SAPP2_ENABLE
-			Draw_texture(&menu_sapp_button[APP_2], menu_sapp_button[APP_2].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 160, 0, 60, 60);
+			Menu_draw_app_tile(&menu_sapp_button[APP_2], 160, 0, 60, 60);
 
 #ifdef DEF_SAPP2_ENABLE_ICON
 			Draw_texture(&menu_icon_image[APP_2], DEF_DRAW_NO_COLOR, 160, 0, 60, 60);
 #endif //DEF_SAPP2_ENABLE_ICON
 #ifdef DEF_SAPP2_ENABLE_NAME
-			Draw_align_c(DEF_SAPP2_NAME, 160, 0, FONT_SIZE_SUB_APP_NAME, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Draw_align_c(DEF_SAPP2_NAME, 160, 0, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_2, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
 #endif //DEF_SAPP2_ENABLE_NAME
 
 			if(Sapp2_query_init_flag())
 			{
-				Draw_texture(&menu_sapp_close_button[APP_2], menu_sapp_close_button[APP_2].selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 205, 0, 15, 15.0);
-				Draw_c("X", 207.5, 0, FONT_SIZE_CLOSE_BUTTON, DEF_DRAW_RED);
+				Draw_texture(&menu_sapp_close_button[APP_2], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 205, 0, 15, 15.0);
+				Draw_c("X", 207.5, 0, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
 			}
 #endif //DEF_SAPP2_ENABLE
 
 #ifdef DEF_SAPP3_ENABLE
-			Draw_texture(&menu_sapp_button[APP_3], menu_sapp_button[APP_3].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 240, 0, 60, 60);
+			Menu_draw_app_tile(&menu_sapp_button[APP_3], 240, 0, 60, 60);
 
 #ifdef DEF_SAPP3_ENABLE_ICON
 			Draw_texture(&menu_icon_image[APP_3], DEF_DRAW_NO_COLOR, 240, 0, 60, 60);
 #endif //DEF_SAPP3_ENABLE_ICON
 #ifdef DEF_SAPP3_ENABLE_NAME
-			Draw_align_c(DEF_SAPP3_NAME, 240, 0, FONT_SIZE_SUB_APP_NAME, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Draw_align_c(DEF_SAPP3_NAME, 240, 0, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_3, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
 #endif //DEF_SAPP3_ENABLE_NAME
 
 			if(Sapp3_query_init_flag())
 			{
-				Draw_texture(&menu_sapp_close_button[APP_3], menu_sapp_close_button[APP_3].selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 285, 0, 15, 15.0);
-				Draw_c("X", 287.5, 0, FONT_SIZE_CLOSE_BUTTON, DEF_DRAW_RED);
+				Draw_texture(&menu_sapp_close_button[APP_3], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 285, 0, 15, 15.0);
+				Draw_c("X", 287.5, 0, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
 			}
 #endif //DEF_SAPP3_ENABLE
 
 #ifdef DEF_SAPP4_ENABLE
-			Draw_texture(&menu_sapp_button[APP_4], menu_sapp_button[APP_4].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 0, 80, 60, 60);
+			Menu_draw_app_tile(&menu_sapp_button[APP_4], 0, 80, 60, 60);
 
 #ifdef DEF_SAPP4_ENABLE_ICON
 			Draw_texture(&menu_icon_image[APP_4], DEF_DRAW_NO_COLOR, 0, 80, 60, 60);
 #endif //DEF_SAPP4_ENABLE_ICON
 #ifdef DEF_SAPP4_ENABLE_NAME
-			Draw_align_c(DEF_SAPP4_NAME, 0, 80, FONT_SIZE_SUB_APP_NAME, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Draw_align_c(DEF_SAPP4_NAME, 0, 80, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_4, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
 #endif //DEF_SAPP4_ENABLE_NAME
 
 			if(Sapp4_query_init_flag())
 			{
-				Draw_texture(&menu_sapp_close_button[APP_4], menu_sapp_close_button[APP_4].selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 45, 80, 15, 15.0);
-				Draw_c("X", 47.5, 80, FONT_SIZE_CLOSE_BUTTON, DEF_DRAW_RED);
+				Draw_texture(&menu_sapp_close_button[APP_4], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 45, 80, 15, 15.0);
+				Draw_c("X", 47.5, 80, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
 			}
 #endif //DEF_SAPP4_ENABLE
 
 #ifdef DEF_SAPP5_ENABLE
-			Draw_texture(&menu_sapp_button[APP_5], menu_sapp_button[APP_5].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 80, 80, 60, 60);
+			Menu_draw_app_tile(&menu_sapp_button[APP_5], 80, 80, 60, 60);
 
 #ifdef DEF_SAPP5_ENABLE_ICON
 			Draw_texture(&menu_icon_image[APP_5], DEF_DRAW_NO_COLOR, 80, 80, 60, 60);
 #endif //DEF_SAPP5_ENABLE_ICON
 #ifdef DEF_SAPP5_ENABLE_NAME
-			Draw_align_c(DEF_SAPP5_NAME, 80, 80, FONT_SIZE_SUB_APP_NAME, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Draw_align_c(DEF_SAPP5_NAME, 80, 80, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_5, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
 #endif //DEF_SAPP5_ENABLE_NAME
 
 			if(Sapp5_query_init_flag())
 			{
-				Draw_texture(&menu_sapp_close_button[APP_5], menu_sapp_close_button[APP_5].selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 125, 80, 15, 15.0);
-				Draw_c("X", 127.5, 80, FONT_SIZE_CLOSE_BUTTON, DEF_DRAW_RED);
+				Draw_texture(&menu_sapp_close_button[APP_5], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 125, 80, 15, 15.0);
+				Draw_c("X", 127.5, 80, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
 			}
 #endif //DEF_SAPP5_ENABLE
 
 #ifdef DEF_SAPP6_ENABLE
-			Draw_texture(&menu_sapp_button[APP_6], menu_sapp_button[APP_6].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 160, 80, 60, 60);
+			Menu_draw_app_tile(&menu_sapp_button[APP_6], 160, 80, 60, 60);
 
 #ifdef DEF_SAPP6_ENABLE_ICON
 			Draw_texture(&menu_icon_image[APP_6], DEF_DRAW_NO_COLOR, 160, 80, 60, 60);
 #endif //DEF_SAPP6_ENABLE_ICON
 #ifdef DEF_SAPP6_ENABLE_NAME
-			Draw_align_c(DEF_SAPP6_NAME, 160, 80, FONT_SIZE_SUB_APP_NAME, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Draw_align_c(DEF_SAPP6_NAME, 160, 80, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_6, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
 #endif //DEF_SAPP6_ENABLE_NAME
 
 			if(Sapp6_query_init_flag())
 			{
-				Draw_texture(&menu_sapp_close_button[APP_6], menu_sapp_close_button[APP_6].selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 205, 80, 15, 15.0);
-				Draw_c("X", 207.5, 80, FONT_SIZE_CLOSE_BUTTON, DEF_DRAW_RED);
+				Draw_texture(&menu_sapp_close_button[APP_6], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 205, 80, 15, 15.0);
+				Draw_c("X", 207.5, 80, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
 			}
 #endif //DEF_SAPP6_ENABLE
 
 #ifdef DEF_SAPP7_ENABLE
-			Draw_texture(&menu_sapp_button[APP_7], menu_sapp_button[APP_7].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 240, 80, 60, 60);
+			Menu_draw_app_tile(&menu_sapp_button[APP_7], 240, 80, 60, 60);
 
 #ifdef DEF_SAPP7_ENABLE_ICON
 			Draw_texture(&menu_icon_image[APP_7], DEF_DRAW_NO_COLOR, 240, 80, 60, 60);
 #endif //DEF_SAPP7_ENABLE_ICON
 #ifdef DEF_SAPP7_ENABLE_NAME
-			Draw_align_c(DEF_SAPP7_NAME, 240, 80, FONT_SIZE_SUB_APP_NAME, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Draw_align_c(DEF_SAPP7_NAME, 240, 80, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_7, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
 #endif //DEF_SAPP7_ENABLE_NAME
 
 			if(Sapp7_query_init_flag())
 			{
-				Draw_texture(&menu_sapp_close_button[APP_7], menu_sapp_close_button[APP_7].selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 285, 80, 15, 15.0);
-				Draw_c("X", 287.5, 80, FONT_SIZE_CLOSE_BUTTON, DEF_DRAW_RED);
+				Draw_texture(&menu_sapp_close_button[APP_7], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 285, 80, 15, 15.0);
+				Draw_c("X", 287.5, 80, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
 			}
 #endif //DEF_SAPP7_ENABLE_ICON
 
-			Draw_texture(&menu_sem_button, menu_sem_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 260, 170, 60, 60);
+			Menu_draw_app_tile(&menu_sem_button, 260, 170, 60, 60);
 
 #ifdef DEF_SEM_ENABLE_ICON
 			Draw_texture(&menu_sem_icon_image[config.is_night], DEF_DRAW_NO_COLOR, 260, 170, 60, 60);
 #endif //DEF_SEM_ENABLE_ICON
 #ifdef DEF_SEM_ENABLE_NAME
-			Draw_c(DEF_SEM_NAME, 270, 205, FONT_SIZE_SUB_APP_NAME, color);
+			Draw_c(DEF_SEM_NAME, 270, 205, FONT_SIZE_SUB_APP_NAME,
+			menu_sem_button.selected ? (config.is_night ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_LIGHT_ACCENT) : color);
 #endif //DEF_SEM_ENABLE_NAME
 
 			if(Util_err_query_show_flag())

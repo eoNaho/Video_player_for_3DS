@@ -10,12 +10,19 @@
 #define LIB_UI_MAX_ROWS					(uint8_t)(8)
 #define LIB_UI_SEARCH_MAX				(uint32_t)(128)
 
+typedef uint8_t Lib_ui_filter;
+#define LIB_UI_FILTER_ALL					(Lib_ui_filter)(0)
+#define LIB_UI_FILTER_VIDEO					(Lib_ui_filter)(1)
+#define LIB_UI_FILTER_MOVIES				(Lib_ui_filter)(2)
+#define LIB_UI_FILTER_SERIES				(Lib_ui_filter)(3)
+
 //Pure navigation state for the library screen.
 //Rendering and input translation live in the 3DS adapter; this part is
 //host-testable and only depends on the index/view modules.
 typedef struct
 {
 	Lib_view_tab tab;
+	Lib_ui_filter filter;
 	Lib_sort_spec sort;
 	uint64_t* ids;					//Owned, sorted ids of the current tab.
 	size_t count;
@@ -49,6 +56,9 @@ bool Lib_ui_set_sort(Lib_ui* ui, Lib_sort_key key, bool descending, const Lib_in
 
 //Sets a case-insensitive title substring filter. NULL or empty clears it.
 bool Lib_ui_set_search(Lib_ui* ui, const char* search, const Lib_index* index);
+
+//Filters to all indexed items, videos, films, or season/episode names.
+void Lib_ui_set_filter(Lib_ui* ui, Lib_ui_filter filter);
 
 //Enables two-column directional navigation while retaining the same visible item count.
 void Lib_ui_set_grid_mode(Lib_ui* ui, bool enabled);

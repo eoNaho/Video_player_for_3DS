@@ -11,6 +11,7 @@
 #include "system/menu.h"
 #include "system/draw/draw.h"
 #include "system/draw/exfont.h"
+#include "system/draw/theme.h"
 #include "system/util/converter.h"
 #include "system/util/cpu_usage.h"
 #include "system/util/curl.h"
@@ -32,6 +33,8 @@
 #include "system/util/watch.h"
 #include "ftp_daemon.h"
 #include "video_player.h"
+
+#define SEM_THEME_COLOR(name)	(sem_dark_theme ? UI_THEME_COLOR_##name : UI_THEME_COLOR_LIGHT_##name)
 
 //Defines.
 #define CHECK_INTERNET_URL					/*(const char*)(*/"http://network-test.debian.org/nm"/*)*/
@@ -765,6 +768,7 @@ void Sem_update_thread(void* arg);
 #endif //(DEF_CURL_API_ENABLE && DEF_SEM_ENABLE_UPDATER)
 
 //Variables.
+static bool sem_dark_theme = true;
 static bool sem_main_run = false;
 static bool sem_already_init = false;
 static bool sem_thread_run = false;
@@ -913,38 +917,38 @@ static const Sem_language sem_languages[] =
 };
 static const Sem_select_2 sem_select_night_mode =
 {
-	.left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_ON,		.button = &sem_night_mode_on_button,	},
-	.right =	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_OFF,		.button = &sem_night_mode_off_button,	},
+	.left =		{ .color = UI_THEME_COLOR_SURFACE,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_ON,		.button = &sem_night_mode_on_button,	},
+	.right =	{ .color = UI_THEME_COLOR_SURFACE,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_OFF,		.button = &sem_night_mode_off_button,	},
 };
 static const Sem_select_1 sem_select_flash_mode =
 {
-	.color = DEF_DRAW_WEAK_RED,	.selected_color = DEF_DRAW_RED,	.msg = MSG_FLASH,		.button = &sem_flash_mode_button,
+	.color = UI_THEME_COLOR_SURFACE,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_FLASH,		.button = &sem_flash_mode_button,
 };
 static const Sem_slider sem_slider_brightness =
 {
-	.color = DEF_DRAW_WEAK_LIME,		.selected_color = DEF_DRAW_LIME,			.slider_color = DEF_DRAW_WEAK_RED,
+	.color = UI_THEME_COLOR_RAIL_OFF,	.selected_color = UI_THEME_COLOR_ACCENT,	.slider_color = UI_THEME_COLOR_ACCENT,
 	.bar = &sem_screen_brightness_bar,	.slider = &sem_screen_brightness_slider,
 };
 static const Sem_slider sem_slider_lcd_off_time =
 {
-	.color = DEF_DRAW_WEAK_LIME,		.selected_color = DEF_DRAW_LIME,			.slider_color = DEF_DRAW_WEAK_RED,
+	.color = UI_THEME_COLOR_ACCENT_WEAK,		.selected_color = UI_THEME_COLOR_ACCENT,			.slider_color = DEF_DRAW_WEAK_RED,
 	.bar = &sem_screen_off_time_bar,	.slider = &sem_screen_off_time_slider,
 };
 static const Sem_slider sem_slider_sleep_time =
 {
-	.color = DEF_DRAW_WEAK_LIME,		.selected_color = DEF_DRAW_LIME,			.slider_color = DEF_DRAW_WEAK_RED,
+	.color = UI_THEME_COLOR_ACCENT_WEAK,		.selected_color = UI_THEME_COLOR_ACCENT,			.slider_color = DEF_DRAW_WEAK_RED,
 	.bar = &sem_sleep_time_bar,			.slider = &sem_sleep_time_slider,
 };
 static const Sem_select_4 sem_select_top_mode =
 {
-	.left =				{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_800PX,	.button = &sem_800px_mode_button,	},
-	.center_left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_3D,		.button = &sem_3d_mode_button,		},
-	.center_right =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_400PX,	.button = &sem_400px_mode_button,	},
-	.right =			{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_AUTO,	.button = &sem_auto_mode_button,	},
+	.left =				{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_800PX,	.button = &sem_800px_mode_button,	},
+	.center_left =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_3D,		.button = &sem_3d_mode_button,		},
+	.center_right =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_400PX,	.button = &sem_400px_mode_button,	},
+	.right =			{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_AUTO,	.button = &sem_auto_mode_button,	},
 };
 static const Sem_slider sem_slider_scroll_speed =
 {
-	.color = DEF_DRAW_WEAK_LIME,		.selected_color = DEF_DRAW_LIME,			.slider_color = DEF_DRAW_WEAK_RED,
+	.color = UI_THEME_COLOR_ACCENT_WEAK,		.selected_color = UI_THEME_COLOR_ACCENT,			.slider_color = DEF_DRAW_WEAK_RED,
 	.bar = &sem_scroll_speed_bar,		.slider = &sem_scroll_speed_slider,
 };
 static const Sem_select_2 sem_select_font_load =
@@ -954,78 +958,78 @@ static const Sem_select_2 sem_select_font_load =
 };
 static const Sem_select_2 sem_select_wifi_mode =
 {
-	.left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_ON,		.button = &sem_wifi_on_button,			},
-	.right =	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_OFF,		.button = &sem_wifi_off_button,			},
+	.left =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_ON,		.button = &sem_wifi_on_button,			},
+	.right =	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_OFF,		.button = &sem_wifi_off_button,			},
 };
 static const Sem_select_2 sem_select_send_info_mode =
 {
-	.left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_ALLOW,	.button = &sem_allow_send_info_button,	},
-	.right =	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_DENY,	.button = &sem_deny_send_info_button,	},
+	.left =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_ALLOW,	.button = &sem_allow_send_info_button,	},
+	.right =	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_DENY,	.button = &sem_deny_send_info_button,	},
 };
 static const Sem_select_2 sem_select_debug_mode =
 {
-	.left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_ON,		.button = &sem_debug_mode_on_button,	},
-	.right =	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_OFF,		.button = &sem_debug_mode_off_button,	},
+	.left =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_ON,		.button = &sem_debug_mode_on_button,	},
+	.right =	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_OFF,		.button = &sem_debug_mode_off_button,	},
 };
 static const Sem_select_1 sem_select_fake_mode[] =
 {
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_FAKE_MODEL_OLD_3DS,		.button = &sem_use_fake_model_button,	},
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_FAKE_MODEL_OLD_3DS_XL,	.button = &sem_use_fake_model_button,	},
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_FAKE_MODEL_OLD_2DS,		.button = &sem_use_fake_model_button,	},
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_FAKE_MODEL_NEW_3DS,		.button = &sem_use_fake_model_button,	},
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_FAKE_MODEL_NEW_3DS_XL,	.button = &sem_use_fake_model_button,	},
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_FAKE_MODEL_NEW_2DS_XL,	.button = &sem_use_fake_model_button,	},
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_OFF,						.button = &sem_use_fake_model_button,	},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_FAKE_MODEL_OLD_3DS,		.button = &sem_use_fake_model_button,	},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_FAKE_MODEL_OLD_3DS_XL,	.button = &sem_use_fake_model_button,	},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_FAKE_MODEL_OLD_2DS,		.button = &sem_use_fake_model_button,	},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_FAKE_MODEL_NEW_3DS,		.button = &sem_use_fake_model_button,	},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_FAKE_MODEL_NEW_3DS_XL,	.button = &sem_use_fake_model_button,	},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_FAKE_MODEL_NEW_2DS_XL,	.button = &sem_use_fake_model_button,	},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_OFF,						.button = &sem_use_fake_model_button,	},
 };
 static const Sem_select_1 sem_select_log_dump =
 {
-	.color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_DUMP_LOGS,	.button = &sem_dump_log_button,
+	.color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_DUMP_LOGS,	.button = &sem_dump_log_button,
 };
 
 #if DEF_CPU_USAGE_API_ENABLE
 static const Sem_select_2 sem_select_cpu_monitor_mode =
 {
-	.left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_ON,		.button = &sem_monitor_cpu_usage_on_button,		},
-	.right =	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_OFF,		.button = &sem_monitor_cpu_usage_off_button,	},
+	.left =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_ON,		.button = &sem_monitor_cpu_usage_on_button,		},
+	.right =	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_OFF,		.button = &sem_monitor_cpu_usage_off_button,	},
 };
 #endif //DEF_CPU_USAGE_API_ENABLE
 
 #if DEF_GPU_USAGE_API_ENABLE
 static const Sem_select_2 sem_select_gpu_monitor_mode =
 {
-	.left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_ON,		.button = &sem_monitor_gpu_usage_on_button,		},
-	.right =	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_OFF,		.button = &sem_monitor_gpu_usage_off_button,	},
+	.left =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_ON,		.button = &sem_monitor_gpu_usage_on_button,		},
+	.right =	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_OFF,		.button = &sem_monitor_gpu_usage_off_button,	},
 };
 #endif //DEF_GPU_USAGE_API_ENABLE
 
 #if DEF_NET_USAGE_API_ENABLE
 static const Sem_select_2 sem_select_net_monitor_mode =
 {
-	.left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_ON,		.button = &sem_monitor_net_usage_on_button,		},
-	.right =	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_OFF,		.button = &sem_monitor_net_usage_off_button,	},
+	.left =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_ON,		.button = &sem_monitor_net_usage_on_button,		},
+	.right =	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_OFF,		.button = &sem_monitor_net_usage_off_button,	},
 };
 #endif //DEF_NET_USAGE_API_ENABLE
 
 #if DEF_NVS_USAGE_API_ENABLE
 static const Sem_select_2 sem_select_nvs_monitor_mode =
 {
-	.left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_ON,		.button = &sem_monitor_nvs_usage_on_button,		},
-	.right =	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_OFF,		.button = &sem_monitor_nvs_usage_off_button,	},
+	.left =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_ON,		.button = &sem_monitor_nvs_usage_on_button,		},
+	.right =	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_OFF,		.button = &sem_monitor_nvs_usage_off_button,	},
 };
 #endif //DEF_NVS_USAGE_API_ENABLE
 
 #if DEF_RAM_USAGE_API_ENABLE
 static const Sem_select_2 sem_select_ram_monitor_mode =
 {
-	.left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_ON,		.button = &sem_monitor_ram_usage_on_button,		},
-	.right =	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_OFF,		.button = &sem_monitor_ram_usage_off_button,	},
+	.left =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_ON,		.button = &sem_monitor_ram_usage_on_button,		},
+	.right =	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_OFF,		.button = &sem_monitor_ram_usage_off_button,	},
 };
 #endif //DEF_RAM_USAGE_API_ENABLE
 
 static const Sem_select_2 sem_select_eco_mode =
 {
-	.left =		{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_ON,		.button = &sem_eco_mode_on_button,		},
-	.right =	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_OFF,		.button = &sem_eco_mode_off_button,		},
+	.left =		{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_ON,		.button = &sem_eco_mode_on_button,		},
+	.right =	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_OFF,		.button = &sem_eco_mode_off_button,		},
 };
 static const Sem_bar sem_bar_battery_level =
 {
@@ -1037,24 +1041,24 @@ static const Sem_bar sem_bar_battery_voltage =
 };
 static const Sem_bar sem_bar_battery_temperature =
 {
-	.color = DEF_DRAW_GRAY,		.active_color_left = DEF_DRAW_CYAN,		.active_color_right = DEF_DRAW_RED,
+	.color = DEF_DRAW_GRAY,		.active_color_left = UI_THEME_COLOR_ACCENT,		.active_color_right = DEF_DRAW_RED,
 };
 
 #if (DEF_ENCODER_VIDEO_AUDIO_API_ENABLE && DEF_CONVERTER_SW_API_ENABLE && DEF_SEM_ENABLE_SCREEN_RECORDER)
 static const Sem_select_1 sem_select_record_both[] =
 {
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_RECORD_BOTH_LCD,		.button = &sem_record_both_lcd_button,		},
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_STOP_RECORDING,		.button = &sem_record_both_lcd_button,		},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_RECORD_BOTH_LCD,		.button = &sem_record_both_lcd_button,		},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_STOP_RECORDING,		.button = &sem_record_both_lcd_button,		},
 };
 static const Sem_select_1 sem_select_record_top[] =
 {
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_RECORD_TOP_LCD,		.button = &sem_record_top_lcd_button,		},
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_STOP_RECORDING,		.button = &sem_record_top_lcd_button,		},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_RECORD_TOP_LCD,		.button = &sem_record_top_lcd_button,		},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_STOP_RECORDING,		.button = &sem_record_top_lcd_button,		},
 };
 static const Sem_select_1 sem_select_record_bottom[] =
 {
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_RECORD_BOTTOM_LCD,	.button = &sem_record_bottom_lcd_button,	},
-	{ .color = DEF_DRAW_WEAK_CYAN,	.selected_color = DEF_DRAW_CYAN,	.msg = MSG_STOP_RECORDING,		.button = &sem_record_bottom_lcd_button,	},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_RECORD_BOTTOM_LCD,	.button = &sem_record_bottom_lcd_button,	},
+	{ .color = UI_THEME_COLOR_ACCENT_WEAK,	.selected_color = UI_THEME_COLOR_ACCENT,	.msg = MSG_STOP_RECORDING,		.button = &sem_record_bottom_lcd_button,	},
 };
 #endif //(DEF_ENCODER_VIDEO_AUDIO_API_ENABLE && DEF_CONVERTER_SW_API_ENABLE && DEF_SEM_ENABLE_SCREEN_RECORDER)
 
@@ -1914,11 +1918,11 @@ void Sem_exit(void)
 
 void Sem_main(void)
 {
-	uint32_t color = DEF_DRAW_BLACK;
+	uint32_t color = UI_THEME_COLOR_LIGHT_TEXT;
 	uint32_t color_x2[2] = { 0, };
-	uint32_t red_x2[2] = { DEF_DRAW_RED, DEF_DRAW_RED, };
-	uint32_t weak_color = DEF_DRAW_WEAK_BLACK;
-	uint32_t back_color = DEF_DRAW_WHITE;
+	uint32_t red_x2[2] = { 0, };
+	uint32_t weak_color = UI_THEME_COLOR_LIGHT_SECONDARY_TEXT;
+	uint32_t back_color = UI_THEME_COLOR_LIGHT_BACKGROUND;
 	Watch_handle_bit watch_handle_bit = (DEF_WATCH_HANDLE_BIT_GLOBAL | DEF_WATCH_HANDLE_BIT_SETTINGS_MENU);
 	Sem_config config = { 0, };
 	Sem_state state = { 0, };
@@ -1930,16 +1934,16 @@ void Sem_main(void)
 
 	Sem_get_config(&config);
 	Sem_get_state(&state);
+	sem_dark_theme = config.is_night;
 
-	if (config.is_night)
-	{
-		color = DEF_DRAW_WHITE;
-		weak_color = DEF_DRAW_WEAK_WHITE;
-		back_color = DEF_DRAW_BLACK;
-	}
+	color = SEM_THEME_COLOR(TEXT);
+	weak_color = SEM_THEME_COLOR(SECONDARY_TEXT);
+	back_color = SEM_THEME_COLOR(BACKGROUND);
 
 	color_x2[0] = color;
 	color_x2[1] = color;
+	red_x2[0] = SEM_THEME_COLOR(ACCENT);
+	red_x2[1] = SEM_THEME_COLOR(ACCENT);
 
 	//Check if we should update the screen.
 	if(Util_watch_is_changed(watch_handle_bit) || Draw_is_refresh_needed() || !config.is_eco)
@@ -1985,7 +1989,8 @@ void Sem_main(void)
 			{
 				//Back.
 				Draw_with_background(&sem_msg[MSG_BACK], 0.0, draw_y, FONT_SIZE_BACK, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
-				55, 25, DRAW_BACKGROUND_ENTIRE_BOX, &sem_back_button, (sem_back_button.selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED));
+				55, 25, DRAW_BACKGROUND_ENTIRE_BOX, &sem_back_button,
+				(sem_back_button.selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE)));
 			}
 		}
 
@@ -2043,7 +2048,7 @@ void Sem_main(void)
 				//Edition selection.
 				for(uint8_t i = 0; i < DEF_UTIL_ARRAY_NUM_OF_ELEMENTS(sem_updater_editions); i++)
 				{
-					Sem_updater_edition_button(&sem_updater_editions[i], sem_selected_edition, draw_x, draw_y, color, weak_color, DEF_DRAW_RED);
+					Sem_updater_edition_button(&sem_updater_editions[i], sem_selected_edition, draw_x, draw_y, color, weak_color, SEM_THEME_COLOR(ACCENT));
 					draw_x += (UPDATER_EDITION_WIDTH + UPDATER_EDITION_SPACE_X);
 					if((draw_x + UPDATER_EDITION_WIDTH) > UPDATER_X_END)
 					{
@@ -2083,7 +2088,7 @@ void Sem_main(void)
 			//Update scroll limit.
 			sem_y_min = Util_min_d(-(draw_y - sem_y_offset - UPDATER_Y_END), 0);
 #else
-			Draw_c("☢Updater is disabled\non this app.☢", 10, 25, FONT_SIZE_DISABLED_MSG, DEF_DRAW_RED);
+			Draw_c("☢Updater is disabled\non this app.☢", 10, 25, FONT_SIZE_DISABLED_MSG, SEM_THEME_COLOR(DANGER));
 			sem_y_min = 0;
 #endif //(DEF_CURL_API_ENABLE && DEF_SEM_ENABLE_UPDATER)
 		}
@@ -2095,7 +2100,7 @@ void Sem_main(void)
 			//Languages.
 			for(uint8_t i = 0; i < DEF_UTIL_ARRAY_NUM_OF_ELEMENTS(sem_languages); i++)
 			{
-				Sem_language_button(&sem_languages[i], config.lang, draw_x, draw_y, color, DEF_DRAW_RED);
+				Sem_language_button(&sem_languages[i], config.lang, draw_x, draw_y, color, SEM_THEME_COLOR(ACCENT));
 				draw_y += (LANG_HEIGHT + LANG_SPACE_Y);
 			}
 
@@ -2107,7 +2112,7 @@ void Sem_main(void)
 			uint8_t brightness = Util_max(config.top_lcd_brightness, config.bottom_lcd_brightness);
 			uint8_t top_mode_index = UINT8_MAX;
 			uint32_t top_mode_color[4] = { color, color, color, color, };
-			uint32_t top_mode_selected_color[4] = { DEF_DRAW_RED, DEF_DRAW_RED, DEF_DRAW_RED, DEF_DRAW_RED, };
+			uint32_t top_mode_selected_color[4] = { SEM_THEME_COLOR(ACCENT), SEM_THEME_COLOR(ACCENT), SEM_THEME_COLOR(ACCENT), SEM_THEME_COLOR(ACCENT), };
 			double bar_value = 0;
 
 #if (DEF_ENCODER_VIDEO_AUDIO_API_ENABLE && DEF_CONVERTER_SW_API_ENABLE && DEF_SEM_ENABLE_SCREEN_RECORDER)
@@ -2160,7 +2165,7 @@ void Sem_main(void)
 
 			//Flash.
 			Sem_select_button_1(&sem_select_flash_mode, sem_config.is_flash, draw_x, draw_y,
-			color, DEF_DRAW_RED, LCD_X_START, LCD_X_END, LCD_Y_START, LCD_Y_END);
+				color, SEM_THEME_COLOR(ACCENT), LCD_X_START, LCD_X_END, LCD_Y_START, LCD_Y_END);
 			draw_y += (SELECT_HEIGHT + LCD_SPACE_Y);
 
 			//Screen brightness.
@@ -2263,12 +2268,12 @@ void Sem_main(void)
 				if (Exfont_is_unloading_external_font() || Exfont_is_loading_external_font())
 				{
 					if (Exfont_is_loaded_external_font(i))
-						font_color = DEF_DRAW_WEAK_RED;
+						font_color = SEM_THEME_COLOR(WARNING);
 					else
 						font_color = weak_color;
 				}
 				else if (Exfont_is_loaded_external_font(i))
-					font_color = DEF_DRAW_RED;
+					font_color = SEM_THEME_COLOR(SUCCESS);
 
 				Sem_font_button(&sem_ex_font_button[i], i, font_color, draw_x, draw_y);
 				draw_y += (FONT_HEIGHT + FONT_SPACE_Y);
@@ -2325,11 +2330,11 @@ void Sem_main(void)
 			draw_y += (SUB_TITLE_HEIGHT + ADVANCED_FAKE_MODEL_SPACE_Y);
 
 			Sem_select_button_1(&sem_select_fake_mode[fake_model_index], false, draw_x, draw_y,
-			color, DEF_DRAW_RED, ADVANCED_X_START, ADVANCED_X_END, ADVANCED_Y_START, ADVANCED_Y_END);
+			color, SEM_THEME_COLOR(ACCENT), ADVANCED_X_START, ADVANCED_X_END, ADVANCED_Y_START, ADVANCED_Y_END);
 			draw_y += (SELECT_HEIGHT + ADVANCED_SPACE_Y);
 
 			Sem_select_button_1(&sem_select_log_dump, sem_dump_log_request, draw_x, draw_y,
-			color, DEF_DRAW_RED, ADVANCED_X_START, ADVANCED_X_END, ADVANCED_Y_START, ADVANCED_Y_END);
+			color, SEM_THEME_COLOR(ACCENT), ADVANCED_X_START, ADVANCED_X_END, ADVANCED_Y_START, ADVANCED_Y_END);
 			draw_y += (SELECT_HEIGHT + ADVANCED_SPACE_Y);
 
 #if DEF_CPU_USAGE_API_ENABLE
@@ -2476,14 +2481,14 @@ void Sem_main(void)
 
 			if(!can_record)
 			{
-				Draw(&sem_msg[MSG_CANNOT_RECORD], draw_x, draw_y, FONT_SIZE_REC_UNAVAILABLE, DEF_DRAW_RED);
+				Draw(&sem_msg[MSG_CANNOT_RECORD], draw_x, draw_y, FONT_SIZE_REC_UNAVAILABLE, SEM_THEME_COLOR(DANGER));
 				draw_y += (RECORDING_UNAVAILABLE_HEIGHT + RECORDING_SPACE_Y);
 			}
 
 			//Update scroll limit.
 			sem_y_min = Util_min_d(-(draw_y - sem_y_offset - RECORDING_Y_END), 0);
 #else
-			Draw_c("☢Screen recorder is disabled\non this app.☢", 10, 25, FONT_SIZE_DISABLED_MSG, DEF_DRAW_RED);
+			Draw_c("☢Screen recorder is disabled\non this app.☢", 10, 25, FONT_SIZE_DISABLED_MSG, SEM_THEME_COLOR(DANGER));
 			sem_y_min = 0;
 #endif //(DEF_ENCODER_VIDEO_AUDIO_API_ENABLE && DEF_CONVERTER_SW_API_ENABLE && DEF_SEM_ENABLE_SCREEN_RECORDER)
 		}
@@ -3363,7 +3368,7 @@ void Sem_hid(const Hid_info* key)
 
 static void Sem_scroll_bar(Draw_image_data* bar, double current_pos, double min_pos)
 {
-	uint32_t button_color = (bar->selected ? DEF_DRAW_BLUE : DEF_DRAW_WEAK_BLUE);
+	uint32_t button_color = (bar->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(RAIL_OFF));
 	double y = SCROLL_BAR_Y;
 
 	if(min_pos != 0)
@@ -3379,12 +3384,17 @@ static void Sem_sub_menu_button(const Sem_sub_menu* sub_menu, double x, double y
 
 	if(visibility == DRAW_VISIBILITY_FULLY_VISIBLE || visibility == DRAW_VISIBILITY_PARTIALLY_VISIBLE)
 	{
-		uint32_t button_color = (sem_menu_button[sub_menu->menu_id].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+		uint32_t button_color = (sem_menu_button[sub_menu->menu_id].selected ? SEM_THEME_COLOR(SURFACE_ALT) : SEM_THEME_COLOR(SURFACE));
 		Draw_image_data* button = &sem_menu_button[sub_menu->menu_id];
 		Str_data* msg = &sem_msg[sub_menu->msg];
 
 		Draw_with_background(msg, x, y, FONT_SIZE_SUB_MENU, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 		SUB_MENU_WIDTH, SUB_MENU_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX_CROP, button, button_color);
+		if (button->selected)
+		{
+			Draw_image_data rail = Draw_get_empty_image();
+			Draw_texture(&rail, SEM_THEME_COLOR(ACCENT), x, y, 3, SUB_MENU_HEIGHT);
+		}
 	}
 }
 
@@ -3436,7 +3446,7 @@ static void Sem_updater_close_button(Draw_image_data* button, Sem_msg msg_id, do
 
 	if(visibility == DRAW_VISIBILITY_FULLY_VISIBLE || visibility == DRAW_VISIBILITY_PARTIALLY_VISIBLE)
 	{
-		uint32_t button_color = (button->selected ? DEF_DRAW_ORANGE : DEF_DRAW_WEAK_ORANGE);
+		uint32_t button_color = (button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
 		Str_data* msg = &sem_msg[msg_id];
 
 		Draw_with_background(msg, x, y, FONT_SIZE_UPDATER_CLOSE, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
@@ -3451,7 +3461,7 @@ static void Sem_updater_edition_button(const Sem_updater_edition* edition, Sem_e
 
 	if(visibility == DRAW_VISIBILITY_FULLY_VISIBLE || visibility == DRAW_VISIBILITY_PARTIALLY_VISIBLE)
 	{
-		uint32_t button_color = (edition->button->selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED);
+		uint32_t button_color = (edition->button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
 		Str_data* msg = &sem_msg[edition->msg];
 		Draw_image_data* button = edition->button;
 
@@ -3475,7 +3485,7 @@ static void Sem_updater_3dsx_path(Sem_msg msg_id, const Str_data* path, double x
 		Str_data* msg = &sem_msg[msg_id];
 
 		Draw(msg, x, y, FONT_SIZE_UPDATER_3DSX_PATH, color);
-		Draw(path, x, (y + (UPDATER_3DSX_PATH_HEIGHT / 2)), FONT_SIZE_UPDATER_3DSX_PATH, DEF_DRAW_RED);
+		Draw(path, x, (y + (UPDATER_3DSX_PATH_HEIGHT / 2)), FONT_SIZE_UPDATER_3DSX_PATH, SEM_THEME_COLOR(ACCENT));
 	}
 }
 
@@ -3486,7 +3496,7 @@ static void Sem_updater_install_button(Draw_image_data* button, Sem_msg msg_id, 
 
 	if(visibility == DRAW_VISIBILITY_FULLY_VISIBLE || visibility == DRAW_VISIBILITY_PARTIALLY_VISIBLE)
 	{
-		uint32_t button_color = (button->selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+		uint32_t button_color = (button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
 		Str_data* msg = &sem_msg[msg_id];
 
 		Draw_with_background(msg, x, y, FONT_SIZE_UPDATER_INSTALL, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
@@ -3505,7 +3515,7 @@ static void Sem_updater_patch_note(const Str_data* patch_note, double x, double 
 
 		Draw_with_scale(patch_note, x, y, FONT_SIZE_UPDATER_PATCH_NOTE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT,
 		color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, UPDATER_PATCH_NOTE_WIDTH, UPDATER_PATCH_NOTE_HEIGHT,
-		DRAW_BACKGROUND_ENTIRE_BOX_CROP, &background, DEF_DRAW_WEAK_LIME);
+		DRAW_BACKGROUND_ENTIRE_BOX_CROP, &background, SEM_THEME_COLOR(SURFACE));
 	}
 }
 #endif //(DEF_CURL_API_ENABLE && DEF_SEM_ENABLE_UPDATER)
@@ -3517,7 +3527,7 @@ static void Sem_language_button(const Sem_language* language, const char* curren
 
 	if(visibility == DRAW_VISIBILITY_FULLY_VISIBLE || visibility == DRAW_VISIBILITY_PARTIALLY_VISIBLE)
 	{
-		uint32_t button_color = (language->button->selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+		uint32_t button_color = (language->button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
 		float font_size = FONT_SIZE_LANG;
 		Str_data* msg = &sem_msg[language->msg];
 
@@ -3528,6 +3538,11 @@ static void Sem_language_button(const Sem_language* language, const char* curren
 
 		Draw_with_background(msg, x, y, font_size, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 		LANG_WIDTH, LANG_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX_CROP, language->button, button_color);
+		if (strcmp(current_lang, language->lang) == 0)
+		{
+			Draw_image_data rail = Draw_get_empty_image();
+			Draw_texture(&rail, SEM_THEME_COLOR(ACCENT), x, y + LANG_HEIGHT - 3, LANG_WIDTH, 3);
+		}
 	}
 }
 
@@ -3538,7 +3553,7 @@ static void Sem_font_button(Draw_image_data* button, uint8_t index, uint32_t col
 
 	if(visibility == DRAW_VISIBILITY_FULLY_VISIBLE || visibility == DRAW_VISIBILITY_PARTIALLY_VISIBLE)
 	{
-		uint32_t button_color = (button->selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+		uint32_t button_color = (button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
 		float font_size = FONT_SIZE_FONT_NAME;
 		const char* text = Exfont_query_external_font_name(index);
 
@@ -3554,7 +3569,7 @@ static void Sem_license_button(const Sem_license* license, double x, double y, u
 
 	if(visibility == DRAW_VISIBILITY_FULLY_VISIBLE || visibility == DRAW_VISIBILITY_PARTIALLY_VISIBLE)
 	{
-		uint32_t button_color = (license->button->selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+		uint32_t button_color = (license->button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
 		float font_size = FONT_SIZE_LICENSE;
 		const char* msg = license->lib_info->license;
 
@@ -3575,63 +3590,83 @@ static void Sem_sub_title(const Str_data* msg, double x, double y, uint32_t colo
 static void Sem_select_button_1(const Sem_select_1* select, bool is_active, double x, double y, uint32_t color,
 uint32_t selected_color, double x_start, double x_end, double y_start, double y_end)
 {
+	(void)selected_color;
 	Draw_visibility visibility = Draw_visibility_check(x, SELECT_1_WIDTH, x_start, x_end, y, SELECT_HEIGHT, y_start, y_end);
 
 	if(visibility == DRAW_VISIBILITY_FULLY_VISIBLE || visibility == DRAW_VISIBILITY_PARTIALLY_VISIBLE)
 	{
-		uint32_t button_color = (select->button->selected ? select->selected_color : select->color);
-		uint32_t text_color = (is_active ? selected_color : color);
+		uint32_t button_color = (select->button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
+		uint32_t text_color = (select->button->selected ? SEM_THEME_COLOR(SELECTED_TEXT)
+		: (is_active ? SEM_THEME_COLOR(ACCENT) : color));
 		Str_data* msg = &sem_msg[select->msg];
 		Draw_image_data* button = select->button;
 
 		Draw_with_background(msg, x, y, FONT_SIZE_SELECT, text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 		SELECT_1_WIDTH, SELECT_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, button, button_color);
+		if (is_active)
+		{
+			Draw_image_data rail = Draw_get_empty_image();
+			Draw_texture(&rail, SEM_THEME_COLOR(ACCENT), x, y + SELECT_HEIGHT - 3, SELECT_1_WIDTH, 3);
+		}
 	}
 }
 
 static void Sem_select_button_2(const Sem_select_2* select, uint8_t active_index, double x, double y, const uint32_t color[2],
 const uint32_t selected_color[2], double x_start, double x_end, double y_start, double y_end)
 {
+	double origin_x = x;
+	(void)selected_color;
 	Draw_visibility visibility = Draw_visibility_check(x, SELECT_2_WIDTH, x_start, x_end, y, SELECT_HEIGHT, y_start, y_end);
 
 	if(visibility == DRAW_VISIBILITY_FULLY_VISIBLE || visibility == DRAW_VISIBILITY_PARTIALLY_VISIBLE)
 	{
-		uint32_t button_color = (select->left.button->selected ? select->left.selected_color : select->left.color);
-		uint32_t text_color = ((active_index == 0) ? selected_color[0] : color[0]);
+		uint32_t button_color = (select->left.button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
+		uint32_t text_color = (select->left.button->selected ? SEM_THEME_COLOR(SELECTED_TEXT)
+		: ((active_index == 0) ? SEM_THEME_COLOR(ACCENT) : color[0]));
 		Str_data* msg = &sem_msg[select->left.msg];
 		Draw_image_data* button = select->left.button;
 
 		Draw_with_background(msg, x, y, FONT_SIZE_SELECT, text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 		SELECT_2_WIDTH, SELECT_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, button, button_color);
 
-		button_color = (select->right.button->selected ? select->right.selected_color : select->right.color);
-		text_color = ((active_index == 1) ? selected_color[1] : color[1]);
+		button_color = (select->right.button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
+		text_color = (select->right.button->selected ? SEM_THEME_COLOR(SELECTED_TEXT)
+		: ((active_index == 1) ? SEM_THEME_COLOR(ACCENT) : color[1]));
 		msg = &sem_msg[select->right.msg];
 		button = select->right.button;
 
 		x += (SELECT_2_WIDTH + SELECT_2_SPACE_X);
 		Draw_with_background(msg, x, y, FONT_SIZE_SELECT, text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 		SELECT_2_WIDTH, SELECT_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, button, button_color);
+		{
+			Draw_image_data rail = Draw_get_empty_image();
+			double active_x = origin_x + (active_index == 0 ? 0 : (SELECT_2_WIDTH + SELECT_2_SPACE_X));
+			Draw_texture(&rail, SEM_THEME_COLOR(ACCENT), active_x, y + SELECT_HEIGHT - 3, SELECT_2_WIDTH, 3);
+		}
 	}
 }
 
 static void Sem_select_button_4(const Sem_select_4* select, uint8_t active_index, double x, double y, const uint32_t color[4],
 const uint32_t selected_color[4], double x_start, double x_end, double y_start, double y_end)
 {
+	double origin_x = x;
+	(void)selected_color;
 	Draw_visibility visibility = Draw_visibility_check(x, SELECT_4_WIDTH, x_start, x_end, y, SELECT_HEIGHT, y_start, y_end);
 
 	if(visibility == DRAW_VISIBILITY_FULLY_VISIBLE || visibility == DRAW_VISIBILITY_PARTIALLY_VISIBLE)
 	{
-		uint32_t button_color = (select->left.button->selected ? select->left.selected_color : select->left.color);
-		uint32_t text_color = ((active_index == 0) ? selected_color[0] : color[0]);
+		uint32_t button_color = (select->left.button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
+		uint32_t text_color = (select->left.button->selected ? SEM_THEME_COLOR(SELECTED_TEXT)
+		: ((active_index == 0) ? SEM_THEME_COLOR(ACCENT) : color[0]));
 		Str_data* msg = &sem_msg[select->left.msg];
 		Draw_image_data* button = select->left.button;
 
 		Draw_with_background(msg, x, y, FONT_SIZE_SELECT, text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 		SELECT_4_WIDTH, SELECT_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, button, button_color);
 
-		button_color = (select->center_left.button->selected ? select->center_left.selected_color : select->center_left.color);
-		text_color = ((active_index == 1) ? selected_color[1] : color[1]);
+		button_color = (select->center_left.button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
+		text_color = (select->center_left.button->selected ? SEM_THEME_COLOR(SELECTED_TEXT)
+		: ((active_index == 1) ? SEM_THEME_COLOR(ACCENT) : color[1]));
 		msg = &sem_msg[select->center_left.msg];
 		button = select->center_left.button;
 
@@ -3639,8 +3674,9 @@ const uint32_t selected_color[4], double x_start, double x_end, double y_start, 
 		Draw_with_background(msg, x, y, FONT_SIZE_SELECT, text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 		SELECT_4_WIDTH, SELECT_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, button, button_color);
 
-		button_color = (select->center_right.button->selected ? select->center_right.selected_color : select->center_right.color);
-		text_color = ((active_index == 2) ? selected_color[2] : color[2]);
+		button_color = (select->center_right.button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
+		text_color = (select->center_right.button->selected ? SEM_THEME_COLOR(SELECTED_TEXT)
+		: ((active_index == 2) ? SEM_THEME_COLOR(ACCENT) : color[2]));
 		msg = &sem_msg[select->center_right.msg];
 		button = select->center_right.button;
 
@@ -3648,14 +3684,20 @@ const uint32_t selected_color[4], double x_start, double x_end, double y_start, 
 		Draw_with_background(msg, x, y, FONT_SIZE_SELECT, text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 		SELECT_4_WIDTH, SELECT_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, button, button_color);
 
-		button_color = (select->right.button->selected ? select->right.selected_color : select->right.color);
-		text_color = ((active_index == 3) ? selected_color[3] : color[3]);
+		button_color = (select->right.button->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE));
+		text_color = (select->right.button->selected ? SEM_THEME_COLOR(SELECTED_TEXT)
+		: ((active_index == 3) ? SEM_THEME_COLOR(ACCENT) : color[3]));
 		msg = &sem_msg[select->right.msg];
 		button = select->right.button;
 
 		x += (SELECT_4_WIDTH + SELECT_4_SPACE_X);
 		Draw_with_background(msg, x, y, FONT_SIZE_SELECT, text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 		SELECT_4_WIDTH, SELECT_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, button, button_color);
+		{
+			Draw_image_data rail = Draw_get_empty_image();
+			double active_x = origin_x + (active_index * (SELECT_4_WIDTH + SELECT_4_SPACE_X));
+			Draw_texture(&rail, SEM_THEME_COLOR(ACCENT), active_x, y + SELECT_HEIGHT - 3, SELECT_4_WIDTH, 3);
+		}
 	}
 }
 
@@ -3668,8 +3710,8 @@ double x, double y, double x_start, double x_end, double y_start, double y_end)
 	{
 		double bar_x = 0;
 		double slider_y = (y + ((BAR_HEIGHT - SLIDER_HEIGHT) / 2));
-		uint32_t bar_color = (slider->bar->selected ? slider->selected_color : slider->color);
-		uint32_t color = slider->slider_color;
+		uint32_t bar_color = (slider->bar->selected ? SEM_THEME_COLOR(ACCENT) : SEM_THEME_COLOR(SURFACE_ALT));
+		uint32_t color = SEM_THEME_COLOR(RAIL_OFF);
 		Draw_image_data* bar = slider->bar;
 		Draw_image_data* slider_ = slider->slider;
 

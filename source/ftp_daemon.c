@@ -13,6 +13,7 @@
 #include "system/menu.h"
 #include "system/sem.h"
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
 #include "system/util/cpu_usage.h"
 #include "system/util/curl.h"
 #include "system/util/err.h"
@@ -76,6 +77,7 @@
 #define HID_DELETE_POLICY_DESEL(k)		(bool)(DEF_HID_PHY_NP((k).touch))
 
 #define CLIENT_INFO_X					(double)(5)				//X offset for client info in px.
+#define CLIENT_INFO_WIDTH				(double)(390)			//Element width for client info in px.
 #define CLIENT_INFO_Y					(double)(20)			//Y offset for client info in px.
 #define CLIENT_INFO_SPACE_Y				(double)(0)				//Element spacing for client info (for Y direction) in px.
 #define CLIENT_INFO_TITLE_HEIGHT		(double)(15)			//Element height for client title in px.
@@ -84,12 +86,12 @@
 #define SERVER_INFO_X					(double)(5)				//X offset for server info in px.
 #define SERVER_INFO_Y					(double)(15)			//Y offset for server info in px.
 #define SERVER_INFO_SPACE_Y				(double)(0)				//Element spacing for server info (for Y direction) in px.
-#define SERVER_INFO_HEIGHT				(double)(25)			//Element height for server info in px.
+#define SERVER_INFO_HEIGHT				(double)(50)			//Element height for server info in px.
 
-#define SERVER_CONFIG_INITIAL_SPACE_Y	(double)(35)			//First element spacing for server config (for Y direction) in px.
+#define SERVER_CONFIG_INITIAL_SPACE_Y	(double)(15)			//First element spacing for server config (for Y direction) in px.
 #define SERVER_CONFIG_SPACE_Y			(double)(2.5)			//Element spacing for server config (for Y direction) in px.
 #define SERVER_CONFIG_WIDTH				(double)(310)			//Element width for server config in px.
-#define SERVER_CONFIG_HEIGHT			(double)(15)			//Element height for server config in px.
+#define SERVER_CONFIG_HEIGHT			(double)(24)			//Element height for server config in px.
 
 #define FONT_SIZE_STATUS				(float)(19.50)			//Font size for status in px.
 #define FONT_SIZE_VER					(float)(12.75)			//Font size for version in px.
@@ -615,8 +617,9 @@ void Ftpd_exit(bool draw)
 
 void Ftpd_main(void)
 {
-	uint32_t color = DEF_DRAW_BLACK;
-	uint32_t back_color = DEF_DRAW_WHITE;
+	uint32_t color = UI_THEME_COLOR_LIGHT_TEXT;
+	uint32_t back_color = UI_THEME_COLOR_LIGHT_BACKGROUND;
+	Draw_image_data background = Draw_get_empty_image();
 	double x_offset = 0;
 	double y_offset = 0;
 	Watch_handle_bit watch_handle_bit = (DEF_WATCH_HANDLE_BIT_GLOBAL | DEF_WATCH_HANDLE_BIT_FTP_DAEMON);
@@ -633,11 +636,8 @@ void Ftpd_main(void)
 	Sem_get_config(&config);
 	Sem_get_state(&state);
 
-	if (config.is_night)
-	{
-		color = DEF_DRAW_WHITE;
-		back_color = DEF_DRAW_BLACK;
-	}
+	color = UI_THEME_COLOR_MODE(config.is_night, TEXT);
+	back_color = UI_THEME_COLOR_MODE(config.is_night, BACKGROUND);
 
 	//Check if we should update the screen.
 	if(Util_watch_is_changed(watch_handle_bit) || Draw_is_refresh_needed() || !config.is_eco)
@@ -665,7 +665,8 @@ void Ftpd_main(void)
 				x_offset = CLIENT_INFO_X;
 				y_offset = CLIENT_INFO_Y;
 				Util_str_format(&temp_text, DEF_STR_NEVER_NULL(&ftpd_msg[MSG_CLIENT_INFO_TITLE]), ftpd.ui_data_copy_draw.connected_clients, ftpd.ui_data_copy_draw.max_clients);
-				Draw(&temp_text, x_offset, y_offset, FONT_SIZE_CLIENT_INFO_TITLE, color);
+				Draw(&temp_text, x_offset, y_offset, FONT_SIZE_CLIENT_INFO_TITLE,
+				UI_THEME_COLOR_MODE(config.is_night, ACCENT));
 				y_offset += (CLIENT_INFO_TITLE_HEIGHT + CLIENT_INFO_SPACE_Y);
 			}
 
@@ -717,7 +718,11 @@ void Ftpd_main(void)
 						//Current directory.
 						Util_str_format_append(&temp_text, DEF_STR_NEVER_NULL(&ftpd_msg[MSG_CLIENT_INFO_CURRENT_DIR]), DEF_STR_NEVER_NULL(&ui_data->dir));
 
-						Draw_with_scale(&temp_text, x_offset, y_offset, FONT_SIZE_CLIENT_INFO, DEF_DRAW_NORMAL_SCALE_AND_COMPACT, color,
+						Draw_texture(&background, UI_THEME_COLOR_MODE(config.is_night, SURFACE),
+						x_offset, y_offset, CLIENT_INFO_WIDTH, CLIENT_INFO_HEIGHT);
+						Draw_texture(&background, UI_THEME_COLOR_MODE(config.is_night, ACCENT),
+						x_offset, y_offset, 3, CLIENT_INFO_HEIGHT);
+						Draw_with_scale(&temp_text, x_offset + 8, y_offset + 3, FONT_SIZE_CLIENT_INFO, DEF_DRAW_NORMAL_SCALE_AND_COMPACT, color,
 						DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, 0, 0, DRAW_BACKGROUND_NONE, NULL, DEF_DRAW_NO_COLOR);
 						y_offset += (CLIENT_INFO_HEIGHT + CLIENT_INFO_SPACE_Y);
 
@@ -754,7 +759,7 @@ void Ftpd_main(void)
 		{
 			Draw_screen_ready(DRAW_SCREEN_BOTTOM, back_color);
 
-			Draw_c(DEF_FTPD_VER, 0, 0, FONT_SIZE_VER, DEF_DRAW_LIME);
+				Draw_c(DEF_FTPD_VER, 0, 0, FONT_SIZE_VER, UI_THEME_COLOR_MODE(config.is_night, ACCENT));
 
 			//Server info.
 			{
@@ -795,13 +800,18 @@ void Ftpd_main(void)
 				else
 					Util_str_add(&temp_text, DEF_STR_NEVER_NULL(&ftpd_msg[MSG_ADDRESS_WAN_INITIALIZING]));
 
-				Draw(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_INFO, DEF_DRAW_RED);
+				Draw_texture(&background, UI_THEME_COLOR_MODE(config.is_night, SURFACE),
+				x_offset, y_offset, SERVER_CONFIG_WIDTH, SERVER_INFO_HEIGHT);
+				Draw_texture(&background, UI_THEME_COLOR_MODE(config.is_night, ACCENT),
+				x_offset, y_offset, 3, SERVER_INFO_HEIGHT);
+				Draw(&temp_text, x_offset + 8, y_offset + 4, FONT_SIZE_SERVER_INFO, UI_THEME_COLOR_MODE(config.is_night, ACCENT));
 				y_offset += (SERVER_INFO_HEIGHT + SERVER_INFO_SPACE_Y);
 			}
 
 			//Sleep policy.
 			{
-				uint32_t temp_back_color = (ftpd.sleep_policy_button.selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+				uint32_t temp_back_color = (ftpd.sleep_policy_button.selected
+				? UI_THEME_COLOR_MODE(config.is_night, ACCENT) : UI_THEME_COLOR_MODE(config.is_night, SURFACE));
 				Ftpd_msg message_id = MSG_CONFIG_DISALLOW;
 
 				if(ftpd.config_copy_draw.sleep_policy == SLEEP_POLICY_ALLOW)
@@ -813,63 +823,72 @@ void Ftpd_main(void)
 
 				y_offset += SERVER_CONFIG_INITIAL_SPACE_Y;
 				Util_str_format(&temp_text, DEF_STR_NEVER_NULL(&ftpd_msg[MSG_CONFIG_SLEEP]), DEF_STR_NEVER_NULL(&ftpd_msg[message_id]));
-				Draw_with_background(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_CONFIG, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
+				Draw_with_background(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_CONFIG,
+				ftpd.sleep_policy_button.selected ? UI_THEME_COLOR_MODE(config.is_night, SELECTED_TEXT) : color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 				SERVER_CONFIG_WIDTH, SERVER_CONFIG_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX_CROP, &ftpd.sleep_policy_button, temp_back_color);
 				y_offset += (SERVER_CONFIG_HEIGHT + SERVER_CONFIG_SPACE_Y);
 			}
 
 			//Read policy.
 			{
-				uint32_t temp_back_color = (ftpd.read_policy_button.selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+				uint32_t temp_back_color = (ftpd.read_policy_button.selected
+				? UI_THEME_COLOR_MODE(config.is_night, ACCENT) : UI_THEME_COLOR_MODE(config.is_night, SURFACE));
 				Ftpd_msg message_id = MSG_CONFIG_DISALLOW;
 
 				if(ftpd.config_copy_draw.read_policy == ACCESS_POLICY_ALLOW)
 					message_id = MSG_CONFIG_ALLOW;
 
 				Util_str_format(&temp_text, DEF_STR_NEVER_NULL(&ftpd_msg[MSG_CONFIG_READ]), DEF_STR_NEVER_NULL(&ftpd_msg[message_id]));
-				Draw_with_background(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_CONFIG, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
+				Draw_with_background(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_CONFIG,
+				ftpd.read_policy_button.selected ? UI_THEME_COLOR_MODE(config.is_night, SELECTED_TEXT) : color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 				SERVER_CONFIG_WIDTH, SERVER_CONFIG_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX_CROP, &ftpd.read_policy_button, temp_back_color);
 				y_offset += (SERVER_CONFIG_HEIGHT + SERVER_CONFIG_SPACE_Y);
 			}
 
 			//Write policy.
 			{
-				uint32_t temp_back_color = (ftpd.write_policy_button.selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+				uint32_t temp_back_color = (ftpd.write_policy_button.selected
+				? UI_THEME_COLOR_MODE(config.is_night, ACCENT) : UI_THEME_COLOR_MODE(config.is_night, SURFACE));
 				Ftpd_msg message_id = MSG_CONFIG_DISALLOW;
 
 				if(ftpd.config_copy_draw.write_policy == ACCESS_POLICY_ALLOW)
 					message_id = MSG_CONFIG_ALLOW;
 
 				Util_str_format(&temp_text, DEF_STR_NEVER_NULL(&ftpd_msg[MSG_CONFIG_WRITE]), DEF_STR_NEVER_NULL(&ftpd_msg[message_id]));
-				Draw_with_background(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_CONFIG, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
+				Draw_with_background(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_CONFIG,
+				ftpd.write_policy_button.selected ? UI_THEME_COLOR_MODE(config.is_night, SELECTED_TEXT) : color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 				SERVER_CONFIG_WIDTH, SERVER_CONFIG_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX_CROP, &ftpd.write_policy_button, temp_back_color);
 				y_offset += (SERVER_CONFIG_HEIGHT + SERVER_CONFIG_SPACE_Y);
 			}
 
 			//Rename policy.
 			{
-				uint32_t temp_back_color = (ftpd.rename_policy_button.selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+				uint32_t temp_back_color = (ftpd.rename_policy_button.selected
+				? UI_THEME_COLOR_MODE(config.is_night, ACCENT) : UI_THEME_COLOR_MODE(config.is_night, SURFACE));
 				Ftpd_msg message_id = MSG_CONFIG_DISALLOW;
 
 				if(ftpd.config_copy_draw.rename_policy == ACCESS_POLICY_ALLOW)
 					message_id = MSG_CONFIG_ALLOW;
 
 				Util_str_format(&temp_text, DEF_STR_NEVER_NULL(&ftpd_msg[MSG_CONFIG_RENAME]), DEF_STR_NEVER_NULL(&ftpd_msg[message_id]));
-				Draw_with_background(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_CONFIG, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
+				Draw_with_background(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_CONFIG,
+				ftpd.rename_policy_button.selected ? UI_THEME_COLOR_MODE(config.is_night, SELECTED_TEXT) : color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 				SERVER_CONFIG_WIDTH, SERVER_CONFIG_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX_CROP, &ftpd.rename_policy_button, temp_back_color);
 				y_offset += (SERVER_CONFIG_HEIGHT + SERVER_CONFIG_SPACE_Y);
 			}
 
 			//Delete policy.
 			{
-				uint32_t temp_back_color = (ftpd.delete_policy_button.selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+				uint32_t temp_back_color = (ftpd.delete_policy_button.selected
+				? UI_THEME_COLOR_MODE(config.is_night, ACCENT) : UI_THEME_COLOR_MODE(config.is_night, SURFACE));
 				Ftpd_msg message_id = MSG_CONFIG_DISALLOW;
 
 				if(ftpd.config_copy_draw.delete_policy == ACCESS_POLICY_ALLOW)
 					message_id = MSG_CONFIG_ALLOW;
 
 				Util_str_format(&temp_text, DEF_STR_NEVER_NULL(&ftpd_msg[MSG_CONFIG_DELETE]), DEF_STR_NEVER_NULL(&ftpd_msg[message_id]));
-				Draw_with_background(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_CONFIG, color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
+				Draw_with_background(&temp_text, x_offset, y_offset, FONT_SIZE_SERVER_CONFIG,
+				ftpd.delete_policy_button.selected ? UI_THEME_COLOR_MODE(config.is_night, SELECTED_TEXT) : color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 				SERVER_CONFIG_WIDTH, SERVER_CONFIG_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX_CROP, &ftpd.delete_policy_button, temp_back_color);
 				y_offset += (SERVER_CONFIG_HEIGHT + SERVER_CONFIG_SPACE_Y);
 			}
@@ -893,8 +912,8 @@ void Ftpd_main(void)
 
 static void Ftpd_draw_init_exit_message(void)
 {
-	uint32_t color = DEF_DRAW_BLACK;
-	uint32_t back_color = DEF_DRAW_WHITE;
+	uint32_t color = UI_THEME_COLOR_LIGHT_TEXT;
+	uint32_t back_color = UI_THEME_COLOR_LIGHT_BACKGROUND;
 	Watch_handle_bit watch_handle_bit = (DEF_WATCH_HANDLE_BIT_GLOBAL | DEF_WATCH_HANDLE_BIT_FTP_DAEMON);
 	Sem_config config = { 0, };
 	Sem_state state = { 0, };
@@ -902,11 +921,8 @@ static void Ftpd_draw_init_exit_message(void)
 	Sem_get_config(&config);
 	Sem_get_state(&state);
 
-	if (config.is_night)
-	{
-		color = DEF_DRAW_WHITE;
-		back_color = DEF_DRAW_BLACK;
-	}
+	color = UI_THEME_COLOR_MODE(config.is_night, TEXT);
+	back_color = UI_THEME_COLOR_MODE(config.is_night, BACKGROUND);
 
 	//Check if we should update the screen.
 	if(Util_watch_is_changed(watch_handle_bit) || Draw_is_refresh_needed() || !config.is_eco)

@@ -7,6 +7,8 @@
 #include <stdint.h>
 
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
+#include "system/sem.h"
 #include "system/util/err_types.h"
 #include "system/util/file.h"
 #include "system/util/hid.h"
@@ -15,7 +17,7 @@
 #include "system/util/watch.h"
 
 //Defines.
-#define DISPLAYED_LINES					(uint8_t)(23)
+#define DISPLAYED_LINES					(uint8_t)(18)
 
 #define BOX_X							(double)(0)		//Box X offset for log screen in px.
 #define BOX_Y							(double)(12.5)	//Box Y offset for log screen in px.
@@ -38,7 +40,7 @@
 #define HID_PAN_RIGHT_CFM(k)			(bool)(DEF_HID_PHY_PR((k).c_right) || DEF_HID_PHY_HE((k).c_right))
 
 #define FONT_SIZE_ERROR					(float)(13.50)	//Font size for API error in px.
-#define FONT_SIZE_LOG					(float)(ITEM_HEIGHT * 1.25)	//Font size for logs in px.
+#define FONT_SIZE_LOG					(float)(13.50)	//Font size for logs in px.
 
 //Typedefs.
 //N/A.
@@ -371,10 +373,16 @@ void Util_log_draw(void)
 {
 	double draw_x = 0;
 	double draw_y = 0;
+	Sem_config config = { 0, };
+	uint32_t log_color = UI_THEME_COLOR_LIGHT_ACCENT;
+
+	Sem_get_config(&config);
+	log_color = UI_THEME_COLOR_MODE(config.is_night, ACCENT);
 
 	if(!util_log_init)
 	{
-		Draw_c("Log API is not initialized.\nPress A to close.", BOX_X, BOX_Y, FONT_SIZE_ERROR, DEF_DRAW_RED);
+		Draw_c("Log API is not initialized.\nPress A to close.", BOX_X, BOX_Y, FONT_SIZE_ERROR,
+		UI_THEME_COLOR_MODE(config.is_night, DANGER));
 		return;
 	}
 
@@ -383,7 +391,7 @@ void Util_log_draw(void)
 
 	for (uint16_t i = 0; i < DISPLAYED_LINES; i++)
 	{
-		Draw(&util_log_logs[util_log_y + i], draw_x, draw_y, FONT_SIZE_LOG, DEF_LOG_COLOR);
+		Draw(&util_log_logs[util_log_y + i], draw_x, draw_y, FONT_SIZE_LOG, log_color);
 		draw_y += (ITEM_HEIGHT + ITEM_SPACE_Y);
 	}
 }

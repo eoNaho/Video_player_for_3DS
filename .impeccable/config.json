@@ -1,0 +1,89 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/assigned.html",
+          ".impeccable/mocks/decision/challenger-emission-rail.html",
+          ".impeccable/mocks/decision/challenger-timetable.html",
+          ".impeccable/mocks/decision/challenger-transit.html",
+          ".impeccable/mocks/decision/model-pick.html",
+          ".impeccable/mocks/decision/r1-assigned-stereo.html",
+          ".impeccable/mocks/decision/r1-challenger-airport.html",
+          ".impeccable/mocks/decision/r1-challenger-manual.html",
+          ".impeccable/mocks/decision/r1-challenger-warm-app.html",
+          ".impeccable/mocks/decision/r1-pick-record-shop.html"
+        ],
+        "createdAt": "2026-11-10T19:58:53.506Z",
+        "reason": "Agent: generated direction-round HTML mocks, not shipped UI; the product implementation is native C and follows the user's Trilho de estados direction."
+      },
+      {
+        "rule": "undersized-ui-text",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/challenger-timetable.html"
+        ],
+        "createdAt": "2026-11-10T19:58:58.918Z",
+        "reason": "Agent: this is an exploratory direction-round mock, not shipped UI; production 3DS text sizing is handled in native C."
+      },
+      {
+        "rule": "monotonous-spacing",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/r1-assigned-stereo.html"
+        ],
+        "createdAt": "2026-11-10T19:59:05.820Z",
+        "reason": "Agent: this is an exploratory direction-round mock, not shipped UI; its spacing rhythm is not part of the implemented interface."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/model-pick.html"
+        ],
+        "createdAt": "2026-11-10T20:17:49.593Z",
+        "reason": "Agent: generated decision-round HTML mock, not shipped UI; this exploratory concept is outside the production interface."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/challenger-emission-rail.html"
+        ],
+        "createdAt": "2026-11-10T20:17:49.679Z",
+        "reason": "Agent: selected Trilho de estados direction mock; its left rails encode item state as described in DESIGN.md, not card decoration."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/canon.html"
+        ],
+        "createdAt": "2026-11-10T20:17:49.763Z",
+        "reason": "Agent: canonical reference HTML mock, not shipped UI; its card accent belongs to the exploratory baseline fixture."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/r1-canon.html"
+        ],
+        "createdAt": "2026-11-10T20:17:49.853Z",
+        "reason": "Agent: canonical reference HTML mock, not shipped UI; its card accent belongs to the exploratory baseline fixture."
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/challenger-transit.html"
+        ],
+        "createdAt": "2026-11-10T20:17:49.938Z",
+        "reason": "Agent: exploratory HTML mock, not shipped UI; #e0e3e1 on #263751 has 9.29:1 contrast."
+      }
+    ]
+  }
+}

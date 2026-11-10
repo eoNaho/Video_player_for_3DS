@@ -34,9 +34,12 @@
 #include "system/util/util.h"
 #include "system/util/watch.h"
 
+#define VID_THEME_COLOR(name)	(vid_dark_theme ? UI_THEME_COLOR_##name : UI_THEME_COLOR_LIGHT_##name)
+
 #include "library/lib_library_3ds.h"
 #include "library/lib_name.h"
 #include "library/lib_queue.h"
+#include "library/lib_scan.h"
 #include "library/lib_ui_3ds.h"
 
 //Defines.
@@ -98,31 +101,31 @@
 #define IS_Y_IN_BOX(y, height, y_valid_start, y_valid_end)		(bool)((y >= y_valid_start) && (y <= (y_valid_end - height)))	//Whether element fits in box (for Y direction).
 
 #define MENU_BOX_X									(double)(0)								//Box X offset for menu in px.
-#define MENU_BOX_Y									(double)(50)							//Box Y offset for menu in px.
+#define MENU_BOX_Y	(double)(40)	//Box Y offset for menu in px.
 #define MENU_BOX_WIDTH								(double)(320)							//Box width for menu in px.
-#define MENU_BOX_HEIGHT								(double)(130)							//Box height for menu in px.
+#define MENU_BOX_HEIGHT	(double)(128)	//Box height for menu in px.
 #define MENU_BOX_X_END								(double)(MENU_BOX_X + MENU_BOX_WIDTH)	//Box X end offset for menu in px.
 #define MENU_BOX_Y_END								(double)(MENU_BOX_Y + MENU_BOX_HEIGHT)	//Box Y end offset for menu in px.
 
-#define MENU_CONTROLS_BOX_X							(double)(67.5)							//Box X offset for controls in px.
-#define MENU_CONTROLS_BOX_Y							(double)(50)							//Box Y offset for controls in px.
-#define MENU_CONTROLS_BOX_WIDTH						(double)(185)							//Box width for controls in px.
-#define MENU_CONTROLS_BOX_HEIGHT					(double)(140)							//Box height for controls in px.
+#define MENU_CONTROLS_BOX_X							(double)(12)							//Box X offset for controls in px.
+#define MENU_CONTROLS_BOX_Y							(double)(31)							//Box Y offset for controls in px.
+#define MENU_CONTROLS_BOX_WIDTH						(double)(296)							//Box width for controls in px.
+#define MENU_CONTROLS_BOX_HEIGHT					(double)(178)							//Box height for controls in px.
 
-#define MENU_CONTROLS_ITEM_INITIAL_SPACE_X			(double)(45)							//Initial element spacing for controls (for X direction) in px.
-#define MENU_CONTROLS_ITEM_INITIAL_SPACE_Y			(double)(17.5)							//Initial element spacing for controls (for Y direction) in px.
-#define MENU_CONTROLS_ITEM_SPACE_Y					(double)(1.7)							//Element spacing for controls (for Y direction) in px.
-#define MENU_CONTROLS_ITEM_HEIGHT					(double)(13.5)							//Element height for controls in px.
+#define MENU_CONTROLS_ITEM_INITIAL_SPACE_X			(double)(12)							//Initial element spacing for controls (for X direction) in px.
+#define MENU_CONTROLS_ITEM_INITIAL_SPACE_Y			(double)(29)							//Initial element spacing for controls (for Y direction) in px.
+#define MENU_CONTROLS_ITEM_SPACE_Y					(double)(1)							//Element spacing for controls (for Y direction) in px.
+#define MENU_CONTROLS_ITEM_HEIGHT					(double)(20)							//Element height for controls in px.
 
-#define MENU_SETTING_0_ITEM_SPACE_X					(double)(12.5)							//Element spacing for setting 0 (for X direction) in px.
-#define MENU_SETTING_0_ITEM_SPACE_Y					(double)(10)							//Element spacing for setting 0 (for Y direction) in px.
-#define MENU_SETTING_0_ITEM_WIDTH					(double)(300)							//Element width for setting 0 in px.
-#define MENU_SETTING_0_ITEM_HEIGHT					(double)(15)							//Element height for setting 0 in px.
+#define MENU_SETTING_0_ITEM_SPACE_X	(double)(12)	//Element spacing for setting 0 (for X direction) in px.
+#define MENU_SETTING_0_ITEM_SPACE_Y	(double)(1)	//Element spacing for setting 0 (for Y direction) in px.
+#define MENU_SETTING_0_ITEM_WIDTH	(double)(280)	//Element width for setting 0 in px.
+#define MENU_SETTING_0_ITEM_HEIGHT	(double)(24)	//Element height for setting 0 in px.
 
-#define MENU_SETTING_1_ITEM_SPACE_X					(double)(12.5)							//Element spacing for setting 1 (for X direction) in px.
-#define MENU_SETTING_1_ITEM_SPACE_Y					(double)(10)							//Element spacing for setting 1 (for Y direction) in px.
-#define MENU_SETTING_1_ITEM_WIDTH					(double)(300)							//Element width for setting 1 in px.
-#define MENU_SETTING_1_ITEM_HEIGHT					(double)(20)							//Element height for setting 1 in px.
+#define MENU_SETTING_1_ITEM_SPACE_X	(double)(12)	//Element spacing for setting 1 (for X direction) in px.
+#define MENU_SETTING_1_ITEM_SPACE_Y	(double)(1)	//Element spacing for setting 1 (for Y direction) in px.
+#define MENU_SETTING_1_ITEM_WIDTH	(double)(280)	//Element width for setting 1 in px.
+#define MENU_SETTING_1_ITEM_HEIGHT	(double)(24)	//Element height for setting 1 in px.
 
 #define MENU_INFO_ITEM_SPACE_X						(double)(0)								//Element spacing for info (for X direction) in px.
 #define MENU_INFO_ITEM_SPACE_Y						(double)(0)								//Element spacing for info (for Y direction) in px.
@@ -132,8 +135,8 @@
 #define MENU_INFO_ITEM_HEIGHT						(double)(10)							//Element height for info in px.
 #define MENU_INFO_GRAPH_HEIGHT						(double)(110)							//Graph height for info in px.
 
-#define MENU_CONTROLS_Y_OFFSET_MIN					(double)(-230)							//Minimum y offset in controls in px.
-#define MENU_SETTING_0_Y_OFFSET_MIN					(double)(-230)							//Minimum y offset in setting 0 menu in px.
+#define MENU_CONTROLS_Y_OFFSET_MIN					(double)(0)							//Minimum y offset in controls in px.
+#define MENU_SETTING_0_Y_OFFSET_MIN	(double)(-245)	//Minimum y offset in setting 0 menu in px.
 #define MENU_SETTING_1_Y_OFFSET_MIN					(double)(-130)							//Minimum y offset in setting 1 menu in px.
 #define MENU_INFO_Y_OFFSET_MIN						(double)(-95)							//Minimum y offset in info menu in px.
 
@@ -262,6 +265,18 @@
 #define HID_SE0_CORRECT_ASPECT_RATIO_SEL(k)			(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(vid_player.correct_aspect_ratio_button, (k)))
 #define HID_SE0_CORRECT_ASPECT_RATIO_CFM(k)			(bool)((DEF_HID_PR_EM((k).touch, 1) || DEF_HID_HD((k).touch)) && DEF_HID_INIT_LAST_IN(vid_player.correct_aspect_ratio_button, (k)))
 #define HID_SE0_CORRECT_ASPECT_RATIO_DESEL(k)		(bool)(DEF_HID_PHY_NP((k).touch))
+//Settings 0: Center video without changing its current zoom.
+#define HID_SE0_CENTER_VIDEO_SEL(k)					(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(vid_player.center_video_button, (k)))
+#define HID_SE0_CENTER_VIDEO_CFM(k)					(bool)((DEF_HID_PR_EM((k).touch, 1) || DEF_HID_HD((k).touch)) && DEF_HID_INIT_LAST_IN(vid_player.center_video_button, (k)))
+#define HID_SE0_CENTER_VIDEO_DESEL(k)				(bool)(DEF_HID_PHY_NP((k).touch))
+//Playback HUD: Center video without changing its zoom.
+#define HID_CENTER_VIDEO_HUD_SEL(k)					(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(vid_player.center_video_hud_button, (k)))
+#define HID_CENTER_VIDEO_HUD_CFM(k)					(bool)((DEF_HID_PR_EM((k).touch, 1) || DEF_HID_HD((k).touch)) && DEF_HID_INIT_LAST_IN(vid_player.center_video_hud_button, (k)))
+#define HID_CENTER_VIDEO_HUD_DESEL(k)				(bool)(DEF_HID_PHY_NP((k).touch))
+//Playback HUD: Fill the screen by cropping the centered image.
+#define HID_FILL_SCREEN_HUD_SEL(k)					(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(vid_player.fill_screen_hud_button, (k)))
+#define HID_FILL_SCREEN_HUD_CFM(k)					(bool)((DEF_HID_PR_EM((k).touch, 1) || DEF_HID_HD((k).touch)) && DEF_HID_INIT_LAST_IN(vid_player.fill_screen_hud_button, (k)))
+#define HID_FILL_SCREEN_HUD_DESEL(k)				(bool)(DEF_HID_PHY_NP((k).touch))
 //Settings 0: Change content moving mode.
 #define HID_SE0_MOVE_CONTENT_MODE_SEL(k)			(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(vid_player.move_content_button, (k)))
 #define HID_SE0_MOVE_CONTENT_MODE_CFM(k)			(bool)((DEF_HID_PR_EM((k).touch, 1) || DEF_HID_HD((k).touch)) && DEF_HID_INIT_LAST_IN(vid_player.move_content_button, (k)))
@@ -345,11 +360,10 @@
 #define FONT_SIZE_OK_BUTTON							(float)(12.75)	//Font size for ok button in px.
 #define FONT_SIZE_VER								(float)(12.75)	//Font size for version in px.
 #define FONT_SIZE_OSD								(float)(13.50)	//Font size for OSD messages in px.
-#define FONT_SIZE_MEDIA_INFO						(float)(13.50)	//Font size for media info in px.
 #define FONT_SIZE_SETTING_0							(float)(15.00)	//Font size for settings 0 buttons in px.
 #define FONT_SIZE_SETTING_0_MOVE_DE_WORKAROUND		(float)(13.50)	//Font size for move content mode in German (temporal workaround) in px.
-#define FONT_SIZE_SETTING_1							(float)(12.75)	//Font size for settings 1 buttons in px.
-#define FONT_SIZE_INFO								(float)(12.75)	//Font size for debug info in px.
+#define FONT_SIZE_SETTING_1							(float)(14.00)	//Font size for settings 1 buttons in px.
+#define FONT_SIZE_INFO								(float)(13.50)	//Font size for debug info in px.
 #define FONT_SIZE_NUM_OF_THREADS_CHANGE				(float)(18.00)	//Font size for number of threads increment/decrement buttons in px.
 #define FONT_SIZE_CONTROLS							(float)(13.50)	//Font size for controls messages in px.
 #define FONT_SIZE_MEDIA_POS							(float)(15.00)	//Font size for media position in px.
@@ -682,6 +696,7 @@ typedef struct
 	bool is_setting_volume;							//Whether user is setting volume level.
 	bool is_setting_seek_duration;					//Whether user is setting seek duration.
 	bool is_scroll_mode;							//Whether scroll mode is active.
+	bool fill_screen;								//Whether fit-to-screen should crop to fill the display.
 	bool must_resume_after_home_menu;				//Whether player must resume playback after nintendo home menu resuming the app.
 	uint32_t turn_off_bottom_screen_count;			//Turn bottom screen off after this count in full-screen mode.
 	uint64_t show_screen_brightness_until;			//Display screen brightness message until this time.
@@ -692,16 +707,14 @@ typedef struct
 	Vid_menu menu_mode;								//Current menu tab.
 
 	uint32_t banner_texture_handle;					//Banner texture handle used for freeing texture.
-	uint32_t control_texture_handle;				//Control texture handle used for freeing texture.
 	C2D_Image banner[2];							//Banner texture.
-	C2D_Image control[2];							//Control texture.
 
 	//Buttons.
 	Draw_image_data select_audio_track_button, texture_filter_button, allow_skip_frames_button, allow_skip_key_frames_button,
 	volume_button, seek_duration_button, use_hw_decoding_button, use_hw_color_conversion_button, use_multi_threaded_decoding_button,
 	lower_resolution_button, decrement_num_of_threads_button, increment_num_of_threads_button, menu_button[MENU_MAX],
-	audio_track_ok_button, audio_track_button[DEF_DECODER_MAX_AUDIO_TRACKS], correct_aspect_ratio_button, move_content_button,
-	remember_video_pos_button, show_decode_graph_button, show_color_conversion_graph_button, show_packet_buffer_graph_button,
+	audio_track_ok_button, audio_track_button[DEF_DECODER_MAX_AUDIO_TRACKS], correct_aspect_ratio_button, center_video_button, move_content_button,
+	center_video_hud_button, fill_screen_hud_button, remember_video_pos_button, show_decode_graph_button, show_color_conversion_graph_button, show_packet_buffer_graph_button,
 	show_raw_video_buffer_graph_button, show_raw_audio_buffer_graph_button, scroll_bar, playback_mode_button, power_profile_button, subtitle_track_ok_button,
 	subtitle_track_button[DEF_DECODER_MAX_SUBTITLE_TRACKS], select_subtitle_track_button, disable_audio_button,
 	disable_video_button, disable_subtitle_button, restart_playback_threshold_bar, seek_bar;
@@ -732,6 +745,8 @@ typedef struct
 //Prototypes.
 static void Vid_draw_init_exit_message(void);
 static void Vid_fit_to_screen(uint16_t screen_width, uint16_t screen_height, Vid_eye eye_index);
+static void Vid_center_video(uint16_t screen_width, uint16_t screen_height, Vid_eye eye_index);
+static void Vid_draw_bottom_tabs(Vid_menu active_menu, bool portuguese);
 static void Vid_change_video_size(double change_px, Vid_eye eye_index);
 static void Vid_enter_full_screen(uint32_t bottom_screen_timeout);
 static void Vid_exit_full_screen(void);
@@ -791,6 +806,7 @@ static Vid_file* Vid_library_file_from_item(const Lib_item* item);
 //Variables.
 static Str_data vid_msg[MSG_MAX] = { 0, };
 static Vid_player vid_player = { 0, };
+static bool vid_dark_theme = true;
 
 //Code.
 bool Vid_query_init_flag(void)
@@ -899,6 +915,11 @@ void Vid_hid(const Hid_info* key)
 		}
 		else
 		{
+			if (HID_CENTER_VIDEO_HUD_SEL(*key))
+				vid_player.center_video_hud_button.selected = true;
+			if (HID_FILL_SCREEN_HUD_SEL(*key))
+				vid_player.fill_screen_hud_button.selected = true;
+
 			if(HID_SYSTEM_UI_SEL(*key))
 				Draw_get_bot_ui_button()->selected = true;
 			else if(vid_player.menu_mode == MENU_SETTINGS_0)
@@ -925,6 +946,8 @@ void Vid_hid(const Hid_info* key)
 					vid_player.seek_duration_button.selected = true;
 				if(HID_SE0_CORRECT_ASPECT_RATIO_SEL(*key))
 					vid_player.correct_aspect_ratio_button.selected = true;
+				if(HID_SE0_CENTER_VIDEO_SEL(*key))
+					vid_player.center_video_button.selected = true;
 				if(HID_SE0_MOVE_CONTENT_MODE_SEL(*key))
 					vid_player.move_content_button.selected = true;
 				if(HID_SE0_SAVE_MEDIA_POS_SEL(*key))
@@ -1135,7 +1158,20 @@ void Vid_hid(const Hid_info* key)
 				Vid_suspend();
 			else if(!vid_player.is_scroll_mode)
 			{
-				if(HID_ENTER_FULL_CFM(*key))
+				if (HID_CENTER_VIDEO_HUD_CFM(*key))
+				{
+					for(uint32_t i = 0; i < EYE_MAX; i++)
+						Vid_center_video(NON_FULL_SCREEN_WIDTH, NON_FULL_SCREEN_HEIGHT, i);
+					Draw_set_refresh_needed(true);
+				}
+				else if (HID_FILL_SCREEN_HUD_CFM(*key))
+				{
+					vid_player.fill_screen = !vid_player.fill_screen;
+					for(uint32_t i = 0; i < EYE_MAX; i++)
+						Vid_fit_to_screen(NON_FULL_SCREEN_WIDTH, NON_FULL_SCREEN_HEIGHT, i);
+					Draw_set_refresh_needed(true);
+				}
+				else if(HID_ENTER_FULL_CFM(*key))
 				{
 					for(uint32_t i = 0; i < EYE_MAX; i++)
 						Vid_fit_to_screen(FULL_SCREEN_WIDTH, FULL_SCREEN_HEIGHT, i);
@@ -1263,6 +1299,12 @@ void Vid_hid(const Hid_info* key)
 						for(uint32_t i = 0; i < EYE_MAX; i++)
 							Vid_fit_to_screen(NON_FULL_SCREEN_WIDTH, NON_FULL_SCREEN_HEIGHT, i);
 					}
+					else if(HID_SE0_CENTER_VIDEO_CFM(*key))
+					{
+						for(uint32_t i = 0; i < EYE_MAX; i++)
+							Vid_center_video(NON_FULL_SCREEN_WIDTH, NON_FULL_SCREEN_HEIGHT, i);
+						Draw_set_refresh_needed(true);
+					}
 					else if(HID_SE0_MOVE_CONTENT_MODE_CFM(*key))//Disable resize and move button.
 					{
 						if((vid_player.move_content_mode + 1) > MOVE_SUBTITLE)
@@ -1290,10 +1332,10 @@ void Vid_hid(const Hid_info* key)
 					{
 						if(key->touch_x <= 12)
 							vid_player.restart_playback_threshold = 0;
-						else if(key->touch_x >= 302)
+						else if(key->touch_x >= 292)
 							vid_player.restart_playback_threshold = DEF_DECODER_MAX_RAW_IMAGE - 1;
 						else
-							vid_player.restart_playback_threshold = (DEF_DECODER_MAX_RAW_IMAGE - 1) * (key->touch_x - 12) / 290;
+							vid_player.restart_playback_threshold = (DEF_DECODER_MAX_RAW_IMAGE - 1) * (key->touch_x - 12) / 280;
 					}
 				}
 				else if(vid_player.menu_mode == MENU_SETTINGS_1)
@@ -1641,6 +1683,12 @@ void Vid_hid(const Hid_info* key)
 		vid_player.seek_duration_button.selected = false;
 	if(HID_SE0_CORRECT_ASPECT_RATIO_DESEL(*key) || vid_player.is_scroll_mode)
 		vid_player.correct_aspect_ratio_button.selected = false;
+	if(HID_SE0_CENTER_VIDEO_DESEL(*key) || vid_player.is_scroll_mode)
+		vid_player.center_video_button.selected = false;
+	if(HID_CENTER_VIDEO_HUD_DESEL(*key) || vid_player.is_scroll_mode)
+		vid_player.center_video_hud_button.selected = false;
+	if(HID_FILL_SCREEN_HUD_DESEL(*key) || vid_player.is_scroll_mode)
+		vid_player.fill_screen_hud_button.selected = false;
 	if(HID_SE0_MOVE_CONTENT_MODE_DESEL(*key) || vid_player.is_scroll_mode)
 		vid_player.move_content_button.selected = false;
 	if(HID_SE0_SAVE_MEDIA_POS_DESEL(*key) || vid_player.is_scroll_mode)
@@ -1790,9 +1838,9 @@ void Vid_exit(bool draw)
 void Vid_main(void)
 {
 	uint8_t subtitle_index = UINT8_MAX;
-	uint32_t color = DEF_DRAW_BLACK;
-	uint32_t disabled_color = DEF_DRAW_WEAK_BLACK;
-	uint32_t back_color = DEF_DRAW_WHITE;
+	uint32_t color = UI_THEME_COLOR_LIGHT_TEXT;
+	uint32_t disabled_color = UI_THEME_COLOR_LIGHT_SECONDARY_TEXT;
+	uint32_t back_color = UI_THEME_COLOR_LIGHT_BACKGROUND;
 	uint64_t current_ts = osGetTime();
 	double text_subtitle_size = 0;
 	double x_offset = 0;
@@ -1824,17 +1872,15 @@ void Vid_main(void)
 
 	Sem_get_config(&config);
 	Sem_get_state(&state);
+	vid_dark_theme = config.is_night;
 	Lib_ui_3ds_set_language(config.lang);
 	Vid_apply_cpu_budget(&state);
 	//A paused frame is static. Leave each display buffer untouched until an input,
 	//watch update or explicit redraw arrives instead of spending a full frame on it.
 	render_every_frame = (bool)(!config.is_eco && vid_player.state != PLAYER_STATE_PAUSE);
-	if (config.is_night)
-	{
-		color = DEF_DRAW_WHITE;
-		disabled_color = DEF_DRAW_WEAK_WHITE;
-		back_color = DEF_DRAW_BLACK;
-	}
+	color = VID_THEME_COLOR(TEXT);
+	disabled_color = VID_THEME_COLOR(SECONDARY_TEXT);
+	back_color = VID_THEME_COLOR(BACKGROUND);
 
 	if (Lib_ui_3ds_is_open())
 	{
@@ -2427,55 +2473,18 @@ void Vid_main(void)
 			else
 			{
 				double current_bar_pos = 0;
+				uint32_t pre_menu_color = color;
+				bool menu_portuguese = (bool)(strncmp(config.lang, "pt", 2) == 0);
 
 				Draw_screen_ready(DRAW_SCREEN_BOTTOM, back_color);
-				Draw_c(DEF_VID_VER, 0, 0, FONT_SIZE_VER, DEF_DRAW_LIME);
-
-				//Draw audio, video and subtitle codec info.
-				Util_str_format(&format_str, "A: %s", vid_player.audio_info[vid_player.selected_audio_track].format_name);
-				Draw(&format_str, 0, 10, FONT_SIZE_MEDIA_INFO, color);
-
-				//Only display EYE_LEFT info.
-				Util_str_format(&format_str, "V: %s", vid_player.video_info[EYE_LEFT].format_name);
-				Draw(&format_str, 0, 19, FONT_SIZE_MEDIA_INFO, color);
-
-				Util_str_format(&format_str, "S: %s", vid_player.subtitle_info[vid_player.selected_subtitle_track].format_name);
-				Draw(&format_str, 0, 28, FONT_SIZE_MEDIA_INFO, color);
-
-				//Only display EYE_LEFT info.
-				Util_str_format(&format_str, "%" PRIu32 "x%" PRIu32 "(%" PRIu32 "x%" PRIu32 ")@%.2ffps",
-				vid_player.video_info[EYE_LEFT].width, vid_player.video_info[EYE_LEFT].height, vid_player.video_info[EYE_LEFT].codec_width,
-				vid_player.video_info[EYE_LEFT].codec_height, vid_player.video_info[EYE_LEFT].framerate);
-				Draw(&format_str, 0, 37, FONT_SIZE_MEDIA_INFO, color);
-
-				//Draw controls before drawing video so video can overlay on top of this.
-				if(vid_player.menu_mode == MENU_CONTROLS)
+				Draw_c(DEF_VID_VER, 0, 0, FONT_SIZE_VER, VID_THEME_COLOR(ACCENT));
+				if (vid_player.state != PLAYER_STATE_IDLE && vid_player.file.name[0] != 0x00)
 				{
-					Draw_image_data control = { .c2d = vid_player.control[config.is_night], };
-
-					Draw_texture(&control, DEF_DRAW_NO_COLOR, MENU_CONTROLS_BOX_X, MENU_CONTROLS_BOX_Y, MENU_CONTROLS_BOX_WIDTH, MENU_CONTROLS_BOX_HEIGHT);
-
-					x_offset = (MENU_CONTROLS_BOX_X + MENU_CONTROLS_ITEM_INITIAL_SPACE_X);
-					y_offset = (vid_player.ui_y_offset + MENU_CONTROLS_BOX_Y + MENU_CONTROLS_ITEM_INITIAL_SPACE_Y);
-					Draw(&vid_msg[MSG_CONTROL_DESCRIPTION], x_offset, y_offset, FONT_SIZE_CONTROLS, DEF_DRAW_BLACK);
-
-					y_offset += (MENU_CONTROLS_ITEM_HEIGHT + MENU_CONTROLS_ITEM_SPACE_Y);
-					Draw(&vid_msg[MSG_CONTROL_DESCRIPTION_1], x_offset, y_offset, FONT_SIZE_CONTROLS, DEF_DRAW_BLACK);
-
-					y_offset += (MENU_CONTROLS_ITEM_HEIGHT + MENU_CONTROLS_ITEM_SPACE_Y);
-					Draw(&vid_msg[MSG_CONTROL_DESCRIPTION_2], x_offset, y_offset, FONT_SIZE_CONTROLS, DEF_DRAW_BLACK);
-
-					y_offset += (MENU_CONTROLS_ITEM_HEIGHT + MENU_CONTROLS_ITEM_SPACE_Y);
-					Draw(&vid_msg[MSG_CONTROL_DESCRIPTION_3], x_offset, y_offset, FONT_SIZE_CONTROLS, DEF_DRAW_BLACK);
-
-					y_offset += (MENU_CONTROLS_ITEM_HEIGHT + MENU_CONTROLS_ITEM_SPACE_Y);
-					Draw(&vid_msg[MSG_CONTROL_DESCRIPTION_4], x_offset, y_offset, FONT_SIZE_CONTROLS, DEF_DRAW_BLACK);
-
-					y_offset += (MENU_CONTROLS_ITEM_HEIGHT + MENU_CONTROLS_ITEM_SPACE_Y);
-					Draw(&vid_msg[MSG_CONTROL_DESCRIPTION_5], x_offset, y_offset, FONT_SIZE_CONTROLS, DEF_DRAW_BLACK);
-
-					y_offset += (MENU_CONTROLS_ITEM_HEIGHT + MENU_CONTROLS_ITEM_SPACE_Y);
-					Draw(&vid_msg[MSG_CONTROL_DESCRIPTION_6], x_offset, y_offset, FONT_SIZE_CONTROLS, DEF_DRAW_BLACK);
+					char display_title[MAX_FILE_NAME_LENGTH] = { 0, };
+					if (!Lib_name_parse(vid_player.file.name, display_title, sizeof(display_title), NULL, NULL, NULL))
+						snprintf(display_title, sizeof(display_title), "%s", vid_player.file.name);
+					Draw_with_crop_c(display_title, 8, 19, FONT_SIZE_SETTING_0,
+					color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, 304, 20);
 				}
 
 				if(vid_player.state != PLAYER_STATE_IDLE)
@@ -2511,24 +2520,66 @@ void Vid_main(void)
 					}
 				}
 
+				if(vid_player.menu_mode == MENU_CONTROLS)
+				{
+					static const uint8_t control_messages[] =
+					{
+						MSG_CONTROL_DESCRIPTION, MSG_CONTROL_DESCRIPTION_1, MSG_CONTROL_DESCRIPTION_2,
+						MSG_CONTROL_DESCRIPTION_3, MSG_CONTROL_DESCRIPTION_4, MSG_CONTROL_DESCRIPTION_5,
+						MSG_CONTROL_DESCRIPTION_6,
+					};
+					double row_x = MENU_CONTROLS_BOX_X + MENU_CONTROLS_ITEM_INITIAL_SPACE_X;
+					double row_y = MENU_CONTROLS_BOX_Y + MENU_CONTROLS_ITEM_INITIAL_SPACE_Y;
+					double row_width = MENU_CONTROLS_BOX_WIDTH - (MENU_CONTROLS_ITEM_INITIAL_SPACE_X * 2);
+					uint32_t row_color = 0;
+					const char* controls_title = menu_portuguese ? "CONTROLES DE REPRODUÇÃO" : "PLAYBACK CONTROLS";
+
+					Draw_texture(&background, VID_THEME_COLOR(BACKGROUND), MENU_CONTROLS_BOX_X, MENU_CONTROLS_BOX_Y,
+					MENU_CONTROLS_BOX_WIDTH, MENU_CONTROLS_BOX_HEIGHT);
+					Draw_texture(&background, VID_THEME_COLOR(ACCENT), MENU_CONTROLS_BOX_X, MENU_CONTROLS_BOX_Y,
+					3, MENU_CONTROLS_BOX_HEIGHT);
+					Draw_align_c(controls_title, MENU_CONTROLS_BOX_X + 8, MENU_CONTROLS_BOX_Y + 4,
+					UI_THEME_FONT_HEADING, VID_THEME_COLOR(TEXT), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
+					MENU_CONTROLS_BOX_WIDTH - 16, 20);
+					Draw_texture(&background, VID_THEME_COLOR(RAIL_OFF), MENU_CONTROLS_BOX_X + 8,
+					MENU_CONTROLS_BOX_Y + 26, MENU_CONTROLS_BOX_WIDTH - 16, 1);
+
+					for(uint8_t i = 0; i < DEF_UTIL_ARRAY_NUM_OF_ELEMENTS(control_messages); i++)
+					{
+						row_color = (i & 1) ? VID_THEME_COLOR(SURFACE) : VID_THEME_COLOR(SURFACE_ALT);
+						Draw_texture(&background, row_color, row_x, row_y, row_width, MENU_CONTROLS_ITEM_HEIGHT);
+						Draw_with_crop(&vid_msg[control_messages[i]], row_x + 8, row_y + 2,
+						FONT_SIZE_CONTROLS, VID_THEME_COLOR(TEXT), DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
+						row_width - 16, MENU_CONTROLS_ITEM_HEIGHT - 4);
+						row_y += (MENU_CONTROLS_ITEM_HEIGHT + MENU_CONTROLS_ITEM_SPACE_Y);
+					}
+				}
+
 				if(vid_player.menu_mode != MENU_CONTROLS)
-					Draw_texture(&background, DEF_DRAW_WEAK_LIME, MENU_BOX_X, MENU_BOX_Y, MENU_BOX_WIDTH, MENU_BOX_HEIGHT);
+				{
+					Draw_texture(&background, VID_THEME_COLOR(BACKGROUND), MENU_BOX_X, MENU_BOX_Y,
+					MENU_BOX_WIDTH, MENU_BOX_HEIGHT);
+					color = VID_THEME_COLOR(TEXT);
+				}
 
 				if(vid_player.menu_mode == MENU_SETTINGS_0)
 				{
 					//Scroll bar.
-					Draw_texture(&vid_player.scroll_bar, vid_player.scroll_bar.selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 313, (vid_player.ui_y_offset / vid_player.ui_y_offset_min * 120) + 50, 7, 10);
+					Draw_texture(&vid_player.scroll_bar,
+					vid_player.scroll_bar.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE_ALT),
+					296, (vid_player.ui_y_offset / vid_player.ui_y_offset_min * 104) + MENU_BOX_Y, 24, 24);
 
 					x_offset = (MENU_BOX_X + MENU_SETTING_0_ITEM_SPACE_X);
 					y_offset = (vid_player.ui_y_offset + MENU_BOX_Y + MENU_SETTING_0_ITEM_SPACE_Y);
 					//Playback mode.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_back_color = (vid_player.playback_mode_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.playback_mode_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 						Vid_playback current_playback_mode = (Vid_playback)(MSG_NO_REPEAT + vid_player.playback_mode);
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_PLAY_METHOD]), DEF_STR_NEVER_NULL(&vid_msg[current_playback_mode]));
-						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
+						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0,
+						vid_player.playback_mode_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 						MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.playback_mode_button, temp_back_color);
 					}
 					else
@@ -2545,12 +2596,13 @@ void Vid_main(void)
 						char profile_text[96] = { 0, };
 						bool portuguese = (bool)(strncmp(config.lang, "pt", 2) == 0);
 						uint32_t selected_color = vid_player.power_profile_button.selected
-							? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_MUTED;
+							? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(MUTED);
 						snprintf(profile_text, sizeof(profile_text), "%s%s",
 							portuguese ? "Perfil de energia: " : "Power profile: ",
 							Vid_power_profile_name(vid_player.power_profile, portuguese));
 						Draw_with_background_c(profile_text, x_offset, y_offset, FONT_SIZE_SETTING_0,
-							color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER, MENU_SETTING_0_ITEM_WIDTH,
+							vid_player.power_profile_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color,
+							DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER, MENU_SETTING_0_ITEM_WIDTH,
 							UI_THEME_TOUCH_MIN, DRAW_BACKGROUND_ENTIRE_BOX,
 							&vid_player.power_profile_button, selected_color);
 					}
@@ -2561,11 +2613,32 @@ void Vid_main(void)
 					}
 
 					y_offset += (MENU_SETTING_0_ITEM_HEIGHT + MENU_SETTING_0_ITEM_SPACE_Y);
+					//Direct action to fix an off-center image without resetting zoom.
+					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END)
+					&& IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
+					{
+						bool portuguese = (bool)(strncmp(config.lang, "pt", 2) == 0);
+					uint32_t selected_color = vid_player.center_video_button.selected
+						? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE);
+					Draw_with_background_c(portuguese ? "Centralizar vídeo (manter zoom)" : "Center video (keep zoom)",
+						x_offset, y_offset, FONT_SIZE_SETTING_0,
+						vid_player.center_video_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT,
+						DRAW_Y_ALIGN_CENTER, MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT,
+						DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.center_video_button, selected_color);
+					}
+					else
+					{
+						vid_player.center_video_button.x_size = -1;
+						vid_player.center_video_button.y_size = -1;
+					}
+
+					y_offset += (MENU_SETTING_0_ITEM_HEIGHT + MENU_SETTING_0_ITEM_SPACE_Y);
 					//Volume.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = ((vid_player.sub_state & PLAYER_SUB_STATE_TOO_BIG) ? DEF_DRAW_RED : color);
-						uint32_t temp_back_color = (vid_player.volume_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+					uint32_t temp_color = ((vid_player.sub_state & PLAYER_SUB_STATE_TOO_BIG)
+					? VID_THEME_COLOR(DANGER) : (vid_player.volume_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color));
+						uint32_t temp_back_color = (vid_player.volume_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%" PRIu32 "%%", DEF_STR_NEVER_NULL(&vid_msg[MSG_VOLUME]), vid_player.volume);
 						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0, temp_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
@@ -2581,9 +2654,10 @@ void Vid_main(void)
 					//Select audio track.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_back_color = (vid_player.select_audio_track_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.select_audio_track_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
-						Draw_with_background(&vid_msg[MSG_AUDIO_TRACK], x_offset, y_offset, FONT_SIZE_SETTING_0, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
+						Draw_with_background(&vid_msg[MSG_AUDIO_TRACK], x_offset, y_offset, FONT_SIZE_SETTING_0,
+						vid_player.select_audio_track_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 						MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.select_audio_track_button, temp_back_color);
 					}
 					else
@@ -2596,9 +2670,10 @@ void Vid_main(void)
 					//Select subtitle track.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_back_color = (vid_player.select_subtitle_track_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.select_subtitle_track_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
-						Draw_with_background(&vid_msg[MSG_SUBTITLE_TRACK], x_offset, y_offset, FONT_SIZE_SETTING_0, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
+						Draw_with_background(&vid_msg[MSG_SUBTITLE_TRACK], x_offset, y_offset, FONT_SIZE_SETTING_0,
+						vid_player.select_subtitle_track_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 						MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.select_subtitle_track_button, temp_back_color);
 					}
 					else
@@ -2611,10 +2686,11 @@ void Vid_main(void)
 					//Seek duration.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_back_color = (vid_player.seek_duration_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.seek_duration_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%" PRIu32 "s", DEF_STR_NEVER_NULL(&vid_msg[MSG_SEEK]), vid_player.seek_duration);
-						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
+						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0,
+						vid_player.seek_duration_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 						MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.seek_duration_button, temp_back_color);
 					}
 					else
@@ -2627,10 +2703,11 @@ void Vid_main(void)
 					//Remember video pos.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_back_color = (vid_player.remember_video_pos_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.remember_video_pos_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_REMEMBER_POS]), (vid_player.remember_video_pos ? "ON" : "OFF"));
-						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
+						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0,
+						vid_player.remember_video_pos_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 						MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.remember_video_pos_button, temp_back_color);
 					}
 					else
@@ -2643,10 +2720,11 @@ void Vid_main(void)
 					//Texture filter.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_back_color = (vid_player.texture_filter_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.texture_filter_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_TEX_FILTER]), (vid_player.use_linear_texture_filter ? "ON" : "OFF"));
-						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
+						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0,
+						vid_player.texture_filter_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 						MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.texture_filter_button, temp_back_color);
 					}
 					else
@@ -2659,10 +2737,11 @@ void Vid_main(void)
 					//Correct aspect ratio.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_back_color = (vid_player.correct_aspect_ratio_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.correct_aspect_ratio_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_ASPECT_RATIO]), (vid_player.correct_aspect_ratio ? "ON" : "OFF"));
-						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
+						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0,
+						vid_player.correct_aspect_ratio_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 						MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.correct_aspect_ratio_button, temp_back_color);
 					}
 					else
@@ -2675,7 +2754,7 @@ void Vid_main(void)
 					//Move content mode.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_back_color = (vid_player.move_content_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.move_content_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 						Vid_move current_move_content_mode = (Vid_move)(MSG_MOVE_MODE_DISABLE + vid_player.move_content_mode);
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_MOVE_MODE]), DEF_STR_NEVER_NULL(&vid_msg[current_move_content_mode]));
@@ -2683,12 +2762,14 @@ void Vid_main(void)
 						//Temporal workaround for UI overflow.
 						if(strcmp(config.lang, "de") == 0)
 						{
-							Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0_MOVE_DE_WORKAROUND, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
+							Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0_MOVE_DE_WORKAROUND,
+							vid_player.move_content_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 							MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.move_content_button, temp_back_color);
 						}
 						else
 						{
-							Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
+							Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0,
+							vid_player.move_content_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 							MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.move_content_button, temp_back_color);
 						}
 					}
@@ -2702,10 +2783,11 @@ void Vid_main(void)
 					//Allow skip frames.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_back_color = (vid_player.allow_skip_frames_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.allow_skip_frames_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_SKIP_FRAME]), (vid_player.allow_skip_frames ? "ON" : "OFF"));
-						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0, color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
+						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0,
+						vid_player.allow_skip_frames_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 						MENU_SETTING_0_ITEM_WIDTH, MENU_SETTING_0_ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.allow_skip_frames_button, temp_back_color);
 					}
 					else
@@ -2718,8 +2800,10 @@ void Vid_main(void)
 					//Allow skip keyframes.
 					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_0_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.allow_skip_frames ? color : disabled_color);
-						uint32_t temp_back_color = (vid_player.allow_skip_key_frames_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_color = (vid_player.allow_skip_frames
+						? (vid_player.allow_skip_key_frames_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : color)
+						: VID_THEME_COLOR(SECONDARY_TEXT));
+						uint32_t temp_back_color = (vid_player.allow_skip_key_frames_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_SKIP_KEY_FRAME]), (vid_player.allow_skip_key_frames ? "ON" : "OFF"));
 						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_0, temp_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
@@ -2733,16 +2817,19 @@ void Vid_main(void)
 
 					y_offset += 35;//todo
 					//Restart playback threshold.
-					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, 15, MENU_BOX_Y, MENU_BOX_Y_END))//todo
+					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END)
+					&& IS_Y_IN_BOX(y_offset, 24, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_back_color = (vid_player.restart_playback_threshold_bar.selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED);
+						uint32_t temp_back_color = (vid_player.restart_playback_threshold_bar.selected
+						? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(RAIL_OFF));
 
 						//todo
 						Util_str_format(&format_str, DEF_STR_NEVER_NULL(&vid_msg[MSG_RESTART_PLAYBACK_THRESHOLD]), vid_player.restart_playback_threshold);
 						Draw(&format_str, x_offset, (y_offset - 15), FONT_SIZE_SETTING_0, color);
-						Draw_texture(&background, DEF_DRAW_WEAK_BLACK, x_offset, (y_offset + 7.5), MENU_SETTING_0_ITEM_WIDTH, 5);
+						Draw_texture(&background, VID_THEME_COLOR(SURFACE_ALT), x_offset, (y_offset + 7.5), MENU_SETTING_0_ITEM_WIDTH, 5);
 						Draw_texture(&vid_player.restart_playback_threshold_bar, temp_back_color,
-						((double)vid_player.restart_playback_threshold / (DEF_DECODER_MAX_RAW_IMAGE - 1) * 290) + x_offset, y_offset, 10, 20);
+						((double)vid_player.restart_playback_threshold / (DEF_DECODER_MAX_RAW_IMAGE - 1) * 280) + x_offset,
+						y_offset, 24, 24);
 					}
 					else
 					{
@@ -2750,22 +2837,22 @@ void Vid_main(void)
 						vid_player.restart_playback_threshold_bar.y_size = -1;
 					}
 
-					Draw_texture(&background, DEF_DRAW_ORANGE, 0, 180, 100, 8);
-					Draw_texture(&vid_player.menu_button[MENU_SETTINGS_1], vid_player.menu_button[MENU_SETTINGS_1].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 110, 180, 100, 8);
-					Draw_texture(&vid_player.menu_button[MENU_INFO], vid_player.menu_button[MENU_INFO].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 220, 180, 100, 8);
+					Vid_draw_bottom_tabs(MENU_SETTINGS_0, menu_portuguese);
 				}
 				else if(vid_player.menu_mode == MENU_SETTINGS_1)
 				{
 					//Scroll bar.
-					Draw_texture(&vid_player.scroll_bar, vid_player.scroll_bar.selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 313, (vid_player.ui_y_offset / vid_player.ui_y_offset_min * 120) + 50, 7, 10);
+					Draw_texture(&vid_player.scroll_bar,
+					vid_player.scroll_bar.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE_ALT),
+					296, (vid_player.ui_y_offset / vid_player.ui_y_offset_min * 104) + MENU_BOX_Y, 24, 24);
 
 					x_offset = (MENU_BOX_X + MENU_SETTING_1_ITEM_SPACE_X);
 					y_offset = (vid_player.ui_y_offset + MENU_BOX_Y + MENU_SETTING_1_ITEM_SPACE_Y);
 					//Disable audio.
 					if(IS_Y_IN_BOX(x_offset, MENU_SETTING_1_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_1_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? disabled_color : color);
-						uint32_t temp_back_color = (vid_player.disable_audio_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? VID_THEME_COLOR(SECONDARY_TEXT) : color);
+						uint32_t temp_back_color = (vid_player.disable_audio_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_DISABLE_AUDIO]), (vid_player.disable_audio ? "ON" : "OFF"));
 						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_1, temp_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
@@ -2781,8 +2868,8 @@ void Vid_main(void)
 					//Disable video.
 					if(IS_Y_IN_BOX(x_offset, MENU_SETTING_1_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_1_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? disabled_color : color);
-						uint32_t temp_back_color = (vid_player.disable_video_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? VID_THEME_COLOR(SECONDARY_TEXT) : color);
+						uint32_t temp_back_color = (vid_player.disable_video_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_DISABLE_VIDEO]), (vid_player.disable_video ? "ON" : "OFF"));
 						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_1, temp_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
@@ -2798,8 +2885,8 @@ void Vid_main(void)
 					//Disable subtitle.
 					if(IS_Y_IN_BOX(x_offset, MENU_SETTING_1_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_1_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? disabled_color : color);
-						uint32_t temp_back_color = (vid_player.disable_subtitle_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? VID_THEME_COLOR(SECONDARY_TEXT) : color);
+						uint32_t temp_back_color = (vid_player.disable_subtitle_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_DISABLE_SUBTITLE]), (vid_player.disable_subtitle ? "ON" : "OFF"));
 						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_1, temp_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
@@ -2816,7 +2903,7 @@ void Vid_main(void)
 					if(IS_Y_IN_BOX(x_offset, MENU_SETTING_1_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_1_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
 						uint32_t temp_color = ((!DEF_SEM_MODEL_IS_NEW(state.console_model) || vid_player.state != PLAYER_STATE_IDLE) ? disabled_color : color);
-						uint32_t temp_back_color = (vid_player.use_hw_decoding_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.use_hw_decoding_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_HW_DECODER]), (vid_player.use_hw_decoding ? "ON" : "OFF"));
 						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_1, temp_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
@@ -2833,7 +2920,7 @@ void Vid_main(void)
 					if(IS_Y_IN_BOX(x_offset, MENU_SETTING_1_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_1_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
 						uint32_t temp_color = ((!DEF_SEM_MODEL_IS_NEW(state.console_model) || vid_player.state != PLAYER_STATE_IDLE) ? disabled_color : color);
-						uint32_t temp_back_color = (vid_player.use_hw_color_conversion_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_back_color = (vid_player.use_hw_color_conversion_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_HW_CONVERTER]), (vid_player.use_hw_color_conversion ? "ON" : "OFF"));
 						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_1, temp_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
@@ -2849,8 +2936,8 @@ void Vid_main(void)
 					//Use multi-threaded decoding (in software decoding).
 					if(IS_Y_IN_BOX(x_offset, MENU_SETTING_1_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_1_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? disabled_color : color);
-						uint32_t temp_back_color = (vid_player.use_multi_threaded_decoding_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? VID_THEME_COLOR(SECONDARY_TEXT) : color);
+						uint32_t temp_back_color = (vid_player.use_multi_threaded_decoding_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_MULTI_THREAD]), (vid_player.use_multi_threaded_decoding ? "ON" : "OFF"));
 						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_1, temp_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
@@ -2866,8 +2953,8 @@ void Vid_main(void)
 					//Lower resolution.
 					if(IS_Y_IN_BOX(x_offset, MENU_SETTING_1_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_1_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? disabled_color : color);
-						uint32_t temp_back_color = (vid_player.lower_resolution_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? VID_THEME_COLOR(SECONDARY_TEXT) : color);
+						uint32_t temp_back_color = (vid_player.lower_resolution_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, "%s%s", DEF_STR_NEVER_NULL(&vid_msg[MSG_LOWER_RESOLUTION]), lower_resolution_mode[vid_player.lower_resolution]);
 						Draw_with_background(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_1, temp_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
@@ -2883,9 +2970,9 @@ void Vid_main(void)
 					//Increment/decrement number of decoding threads.
 					if(IS_Y_IN_BOX(x_offset, MENU_SETTING_1_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_SETTING_1_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? disabled_color : color);
-						uint32_t temp_back_color_decrement = (vid_player.decrement_num_of_threads_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
-						uint32_t temp_back_color_increment = (vid_player.increment_num_of_threads_button.selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN);
+						uint32_t temp_color = (vid_player.state != PLAYER_STATE_IDLE ? VID_THEME_COLOR(SECONDARY_TEXT) : color);
+						uint32_t temp_back_color_decrement = (vid_player.decrement_num_of_threads_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
+						uint32_t temp_back_color_increment = (vid_player.increment_num_of_threads_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
 
 						Util_str_format(&format_str, DEF_STR_NEVER_NULL(&vid_msg[MSG_NUM_OF_THREADS]), vid_player.num_of_threads);
 						Draw(&format_str, x_offset, y_offset, FONT_SIZE_SETTING_1, temp_color);
@@ -2905,14 +2992,14 @@ void Vid_main(void)
 						vid_player.increment_num_of_threads_button.y_size = -1;
 					}
 
-					Draw_texture(&vid_player.menu_button[MENU_SETTINGS_0], vid_player.menu_button[MENU_SETTINGS_0].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 0, 180, 100, 8);
-					Draw_texture(&background, DEF_DRAW_ORANGE, 110, 180, 100, 8);
-					Draw_texture(&vid_player.menu_button[MENU_INFO], vid_player.menu_button[MENU_INFO].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 220, 180, 100, 8);
+					Vid_draw_bottom_tabs(MENU_SETTINGS_1, menu_portuguese);
 				}
 				else if(vid_player.menu_mode == MENU_INFO)
 				{
 					//Scroll bar.
-					Draw_texture(&vid_player.scroll_bar, vid_player.scroll_bar.selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 313, (vid_player.ui_y_offset / vid_player.ui_y_offset_min * 120) + 50, 7, 10);
+					Draw_texture(&vid_player.scroll_bar,
+					vid_player.scroll_bar.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE_ALT),
+					296, (vid_player.ui_y_offset / vid_player.ui_y_offset_min * 104) + MENU_BOX_Y, 24, 24);
 
 					x_offset = (MENU_BOX_X + MENU_INFO_ITEM_SPACE_X);
 					y_offset = (vid_player.ui_y_offset + MENU_BOX_Y + MENU_INFO_GRAPH_HEIGHT);
@@ -2920,7 +3007,7 @@ void Vid_main(void)
 					if(vid_player.show_color_conversion_graph)
 					{
 						for(uint16_t i = 0; i < (DEBUG_GRAPH_ELEMENTS - 1); i++)
-							Draw_line(i, (y_offset - (vid_player.conversion_time_list[i] / 2)), DEF_DRAW_BLUE, (i + 1), (y_offset - (vid_player.conversion_time_list[i + 1] / 2)), DEF_DRAW_BLUE, 1);
+							Draw_line(i, (y_offset - (vid_player.conversion_time_list[i] / 2)), VID_THEME_COLOR(ACCENT), (i + 1), (y_offset - (vid_player.conversion_time_list[i + 1] / 2)), VID_THEME_COLOR(ACCENT), 1);
 					}
 					//Decoding time.
 					if(vid_player.show_decoding_graph)
@@ -2928,38 +3015,38 @@ void Vid_main(void)
 						uint16_t displaying_frame_pos = (MENU_INFO_ITEM_WIDTH - ((vid_player.sub_state & PLAYER_SUB_STATE_HW_DECODING) ? Util_decoder_mvd_get_available_raw_image_num(DEF_VID_DECODER_SESSION_ID) : Util_decoder_video_get_available_raw_image_num(0, DEF_VID_DECODER_SESSION_ID)));
 
 						for(uint16_t i = 0; i < (DEBUG_GRAPH_ELEMENTS - 1); i++)
-							Draw_line(i, (y_offset - (vid_player.video_decoding_time_list[i] / 2)), DEF_DRAW_RED, (i + 1), (y_offset - (vid_player.video_decoding_time_list[i + 1] / 2)), DEF_DRAW_RED, 1);
+							Draw_line(i, (y_offset - (vid_player.video_decoding_time_list[i] / 2)), VID_THEME_COLOR(DANGER), (i + 1), (y_offset - (vid_player.video_decoding_time_list[i + 1] / 2)), VID_THEME_COLOR(DANGER), 1);
 
 						//Decoding time for frame that is currently displaying.
-						Draw_line(displaying_frame_pos, (y_offset - MENU_INFO_GRAPH_HEIGHT), DEF_DRAW_WEAK_RED, displaying_frame_pos, (y_offset + 8), DEF_DRAW_WEAK_RED, 2);
+						Draw_line(displaying_frame_pos, (y_offset - MENU_INFO_GRAPH_HEIGHT), VID_THEME_COLOR(ACCENT_WEAK), displaying_frame_pos, (y_offset + 8), VID_THEME_COLOR(ACCENT_WEAK), 2);
 					}
 					//Compressed buffer.
 					if(vid_player.show_packet_buffer_graph)
 					{
 						for(uint16_t i = 0; i < (DEBUG_GRAPH_ELEMENTS - 1); i++)
-							Draw_line(i, (y_offset - (vid_player.packet_buffer_list[i] / 3.0)), DEF_DRAW_MAGENTA, (i + 1), (y_offset - (vid_player.packet_buffer_list[i + 1] / 3.0)), DEF_DRAW_MAGENTA, 1);
+							Draw_line(i, (y_offset - (vid_player.packet_buffer_list[i] / 3.0)), VID_THEME_COLOR(WARNING), (i + 1), (y_offset - (vid_player.packet_buffer_list[i + 1] / 3.0)), VID_THEME_COLOR(WARNING), 1);
 					}
 					//Raw video buffer.
 					if(vid_player.show_raw_video_buffer_graph)
 					{
 						for(uint16_t i = 0; i < (DEBUG_GRAPH_ELEMENTS - 1); i++)
-							Draw_line(i, (y_offset - (vid_player.raw_video_buffer_list[EYE_LEFT][i] / 1.5)), DEF_DRAW_ORANGE, (i + 1), (y_offset - (vid_player.raw_video_buffer_list[EYE_LEFT][i + 1] / 1.5)), DEF_DRAW_ORANGE, 1);
+							Draw_line(i, (y_offset - (vid_player.raw_video_buffer_list[EYE_LEFT][i] / 1.5)), VID_THEME_COLOR(WARNING), (i + 1), (y_offset - (vid_player.raw_video_buffer_list[EYE_LEFT][i + 1] / 1.5)), VID_THEME_COLOR(WARNING), 1);
 
 						for(uint16_t i = 0; i < (DEBUG_GRAPH_ELEMENTS - 1); i++)
-							Draw_line(i, (y_offset - (vid_player.raw_video_buffer_list[EYE_RIGHT][i] / 1.5)), DEF_DRAW_YELLOW, (i + 1), (y_offset - (vid_player.raw_video_buffer_list[EYE_RIGHT][i + 1] / 1.5)), DEF_DRAW_YELLOW, 1);
+							Draw_line(i, (y_offset - (vid_player.raw_video_buffer_list[EYE_RIGHT][i] / 1.5)), VID_THEME_COLOR(ACCENT), (i + 1), (y_offset - (vid_player.raw_video_buffer_list[EYE_RIGHT][i + 1] / 1.5)), VID_THEME_COLOR(ACCENT), 1);
 					}
 					//Raw audio buffer.
 					if(vid_player.show_raw_audio_buffer_graph)
 					{
 						for(uint16_t i = 0; i < (DEBUG_GRAPH_ELEMENTS - 1); i++)
-							Draw_line(i, (y_offset - (vid_player.raw_audio_buffer_list[i] / 6.0)), DEF_DRAW_GREEN, (i + 1), (y_offset - (vid_player.raw_audio_buffer_list[i + 1] / 6.0)), DEF_DRAW_GREEN, 1);
+							Draw_line(i, (y_offset - (vid_player.raw_audio_buffer_list[i] / 6.0)), VID_THEME_COLOR(SUCCESS), (i + 1), (y_offset - (vid_player.raw_audio_buffer_list[i + 1] / 6.0)), VID_THEME_COLOR(SUCCESS), 1);
 					}
 
 					//Bottom line.
 					Draw_line(0, y_offset, color, MENU_INFO_ITEM_WIDTH, y_offset, color, 1);
 					//Deadline.
 					//Only display EYE_LEFT info.
-					Draw_line(0, (y_offset - (vid_player.video_frametime[EYE_LEFT] / 2)), DEF_DRAW_GRAY, MENU_INFO_ITEM_WIDTH, (y_offset - (vid_player.video_frametime[EYE_LEFT] / 2)), DEF_DRAW_GRAY, 1);
+					Draw_line(0, (y_offset - (vid_player.video_frametime[EYE_LEFT] / 2)), VID_THEME_COLOR(SECONDARY_TEXT), MENU_INFO_ITEM_WIDTH, (y_offset - (vid_player.video_frametime[EYE_LEFT] / 2)), VID_THEME_COLOR(SECONDARY_TEXT), 1);
 
 					//Keyframe.
 					if(vid_player.show_decoding_graph)
@@ -2974,8 +3061,8 @@ void Vid_main(void)
 					//Compressed buffer button.
 					if(IS_Y_IN_BOX(x_offset, MENU_INFO_LEFT_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_INFO_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.show_packet_buffer_graph ? DEF_DRAW_MAGENTA : color);
-						uint32_t temp_back_color = (vid_player.show_packet_buffer_graph_button.selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+						uint32_t temp_color = (vid_player.show_packet_buffer_graph ? VID_THEME_COLOR(WARNING) : color);
+						uint32_t temp_back_color = (vid_player.show_packet_buffer_graph_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(ACCENT_WEAK));
 
 						Util_str_format(&format_str, "Compressed buffer: %" PRIu16, Util_decoder_get_available_packet_num(DEF_VID_DECODER_SESSION_ID));
 						Draw_texture(&vid_player.show_packet_buffer_graph_button, temp_back_color, x_offset, y_offset, MENU_INFO_LEFT_ITEM_WIDTH, MENU_INFO_ITEM_HEIGHT);
@@ -2993,8 +3080,8 @@ void Vid_main(void)
 					{
 						uint16_t buffer_health = 0;
 						uint32_t buffer_health_ms = 0;
-						uint32_t temp_color = (vid_player.show_raw_video_buffer_graph ? DEF_DRAW_ORANGE : color);
-						uint32_t temp_back_color = (vid_player.show_raw_video_buffer_graph_button.selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+						uint32_t temp_color = (vid_player.show_raw_video_buffer_graph ? VID_THEME_COLOR(WARNING) : color);
+						uint32_t temp_back_color = (vid_player.show_raw_video_buffer_graph_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(ACCENT_WEAK));
 
 						if(vid_player.sub_state & PLAYER_SUB_STATE_HW_DECODING)
 							buffer_health = Util_decoder_mvd_get_available_raw_image_num(DEF_VID_DECODER_SESSION_ID);
@@ -3024,8 +3111,8 @@ void Vid_main(void)
 						uint16_t buffer_health = Util_speaker_get_available_buffer_num(DEF_VID_SPEAKER_SESSION_ID);
 						uint32_t buffer_health_ms = (Util_speaker_get_available_buffer_size(DEF_VID_SPEAKER_SESSION_ID) / 2);
 						uint32_t samplerate = vid_player.audio_info[vid_player.selected_audio_track].sample_rate;
-						uint32_t temp_color = (vid_player.show_raw_audio_buffer_graph ? DEF_DRAW_GREEN : color);
-						uint32_t temp_back_color = (vid_player.show_raw_audio_buffer_graph_button.selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+						uint32_t temp_color = (vid_player.show_raw_audio_buffer_graph ? VID_THEME_COLOR(SUCCESS) : color);
+						uint32_t temp_back_color = (vid_player.show_raw_audio_buffer_graph_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(ACCENT_WEAK));
 
 						if(playing_audio_ch != 0 && samplerate != 0)
 							buffer_health_ms = DEF_UTIL_S_TO_MS_D((double)buffer_health_ms / playing_audio_ch / samplerate);
@@ -3049,15 +3136,15 @@ void Vid_main(void)
 					{
 						//Only display EYE_LEFT info.
 						Util_str_format(&format_str, "Deadline: %.2fms", vid_player.video_frametime[EYE_LEFT]);
-						Draw(&format_str, x_offset, y_offset, FONT_SIZE_INFO, DEF_DRAW_GRAY);
+						Draw(&format_str, x_offset, y_offset, FONT_SIZE_INFO, VID_THEME_COLOR(SECONDARY_TEXT));
 					}
 
 					y_offset += (MENU_INFO_ITEM_HEIGHT + MENU_INFO_ITEM_SPACE_Y);
 					//Decoding time button.
 					if(IS_Y_IN_BOX(x_offset, MENU_INFO_LEFT_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_INFO_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.show_decoding_graph ? DEF_DRAW_RED : color);
-						uint32_t temp_back_color = (vid_player.show_decode_graph_button.selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+						uint32_t temp_color = (vid_player.show_decoding_graph ? VID_THEME_COLOR(DANGER) : color);
+						uint32_t temp_back_color = (vid_player.show_decode_graph_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(ACCENT_WEAK));
 
 						Draw_texture(&vid_player.show_decode_graph_button, temp_back_color, x_offset, y_offset, MENU_INFO_LEFT_ITEM_WIDTH, MENU_INFO_ITEM_HEIGHT);
 
@@ -3074,7 +3161,7 @@ void Vid_main(void)
 					//Audio decoding time.
 					if(IS_Y_IN_BOX(x_offset, MENU_INFO_LEFT_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_INFO_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.show_decoding_graph ? DEF_DRAW_PURPLE : color);
+						uint32_t temp_color = (vid_player.show_decoding_graph ? VID_THEME_COLOR(SUCCESS) : color);
 
 						Util_str_format(&format_str, "Audio decoding (avg): %.3fms", vid_player.audio_decoding_avg_time);
 						Draw(&format_str, x_offset, y_offset, FONT_SIZE_INFO, temp_color);
@@ -3084,8 +3171,8 @@ void Vid_main(void)
 					//Color conversion button.
 					if(IS_Y_IN_BOX(x_offset, MENU_INFO_LEFT_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END) && IS_Y_IN_BOX(y_offset, MENU_INFO_ITEM_HEIGHT, MENU_BOX_Y, MENU_BOX_Y_END))
 					{
-						uint32_t temp_color = (vid_player.show_color_conversion_graph ? DEF_DRAW_BLUE : color);
-						uint32_t temp_back_color = (vid_player.show_color_conversion_graph_button.selected ? DEF_DRAW_LIME : DEF_DRAW_WEAK_LIME);
+						uint32_t temp_color = (vid_player.show_color_conversion_graph ? VID_THEME_COLOR(ACCENT) : color);
+						uint32_t temp_back_color = (vid_player.show_color_conversion_graph_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(ACCENT_WEAK));
 
 						Draw_texture(&vid_player.show_color_conversion_graph_button, temp_back_color, x_offset, y_offset, MENU_INFO_LEFT_ITEM_WIDTH, MENU_INFO_ITEM_HEIGHT);
 
@@ -3215,10 +3302,11 @@ void Vid_main(void)
 						Draw(&format_str, x_offset, y_offset, FONT_SIZE_INFO, color);
 					}
 
-					Draw_texture(&vid_player.menu_button[MENU_SETTINGS_0], vid_player.menu_button[MENU_SETTINGS_0].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 0, 180, 100, 8);
-					Draw_texture(&vid_player.menu_button[MENU_SETTINGS_1], vid_player.menu_button[MENU_SETTINGS_1].selected ? DEF_DRAW_CYAN : DEF_DRAW_WEAK_CYAN, 110, 180, 100, 8);
-					Draw_texture(&background, DEF_DRAW_ORANGE, 220, 180, 100, 8);
+					Vid_draw_bottom_tabs(MENU_INFO, menu_portuguese);
 				}
+
+				if(vid_player.menu_mode != MENU_CONTROLS)
+					color = pre_menu_color;
 
 				//Draw time bar.
 				if(vid_player.seek_bar.selected)
@@ -3232,42 +3320,93 @@ void Vid_main(void)
 				Util_convert_seconds_to_time(DEF_UTIL_MS_TO_S_D(vid_player.media_duration), &time_str[1]);
 
 				Util_str_format(&format_str, "%s/%s", DEF_STR_NEVER_NULL(&time_str[0]), DEF_STR_NEVER_NULL(&time_str[1]));
-				Draw(&format_str, 10, 192.5, FONT_SIZE_MEDIA_POS, color);
+				Draw_texture(&background, VID_THEME_COLOR(BACKGROUND), 0, 194, 320, 46);
+				Draw_with_crop(&format_str, 8, 197, FONT_SIZE_MEDIA_POS, VID_THEME_COLOR(TEXT),
+				DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, 124, 18);
 
-				Draw_texture(&vid_player.seek_bar, DEF_DRAW_LIME, 5, 210, 310, 10);
+				if (vid_player.state != PLAYER_STATE_IDLE
+				&& !vid_player.is_selecting_audio_track && !vid_player.is_selecting_subtitle_track)
+				{
+					bool portuguese = (bool)(strncmp(config.lang, "pt", 2) == 0);
+					Draw_with_background_c(portuguese ? "CENTRO" : "CENTER",
+					138, 194, UI_THEME_FONT_BUTTON,
+					vid_player.center_video_hud_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
+					DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 72, 22,
+					DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.center_video_hud_button,
+					vid_player.center_video_hud_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
+					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 138, 194, 3, 22);
+					Draw_with_background_c(portuguese ? (vid_player.fill_screen ? "AJUSTAR" : "PREENC.")
+					: (vid_player.fill_screen ? "FIT" : "FILL"),
+					214, 194, UI_THEME_FONT_BUTTON,
+					vid_player.fill_screen_hud_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
+					DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 98, 22,
+					DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.fill_screen_hud_button,
+					vid_player.fill_screen_hud_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
+					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 214, 194, 3, 22);
+				}
+				else
+				{
+					vid_player.center_video_hud_button.x_size = -1;
+					vid_player.center_video_hud_button.y_size = -1;
+					vid_player.fill_screen_hud_button.x_size = -1;
+					vid_player.fill_screen_hud_button.y_size = -1;
+				}
+
+				Draw_texture(&vid_player.seek_bar, VID_THEME_COLOR(SURFACE), 5, 216, 310, 24);
 				if(vid_player.media_duration != 0)
-					Draw_texture(&background, DEF_DRAW_PURPLE, 5, 210, (310 * (current_bar_pos / DEF_UTIL_MS_TO_S_D(vid_player.media_duration))), 10);
+					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 5, 225,
+					(310 * (current_bar_pos / DEF_UTIL_MS_TO_S_D(vid_player.media_duration))), 6);
 
 				if(vid_player.is_selecting_audio_track)
 				{
-					Draw_texture(&background, DEF_DRAW_LIME, 40, 20, 240, 140);
-					Draw(&vid_msg[MSG_AUDIO_TRACK_DESCRIPTION], 42.5, 25, FONT_SIZE_TRACK_SELECTION_TITLE, DEF_DRAW_BLACK);
+					Draw_texture(&background, VID_THEME_COLOR(BACKGROUND), 28, 18, 264, 184);
+					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 28, 18, 3, 184);
+					Draw(&vid_msg[MSG_AUDIO_TRACK_DESCRIPTION], 36, 24, FONT_SIZE_TRACK_SELECTION_TITLE, VID_THEME_COLOR(TEXT));
 
 					for(uint8_t i = 0; i < vid_player.num_of_audio_tracks; i++)
 					{
+						double row_y = 48 + (i * 16);
+						uint32_t row_color = (i == vid_player.selected_audio_track_cache ? VID_THEME_COLOR(SURFACE_ALT) : VID_THEME_COLOR(SURFACE));
 						Util_str_format(&format_str, "Track %" PRIu8 "(Lang:%s)", i, vid_player.audio_info[i].track_lang);
-						Draw_texture(&vid_player.audio_track_button[i], vid_player.audio_track_button[i].selected ? DEF_DRAW_ORANGE : DEF_DRAW_WEAK_ORANGE, 40, 40 + (i * 12), 240, 12);
-						Draw(&format_str, 42.5, (40 + (i * 12)), FONT_SIZE_TRACK_SELECTION, (i == vid_player.selected_audio_track_cache ? DEF_DRAW_RED : color));
+						if (vid_player.audio_track_button[i].selected)
+							row_color = VID_THEME_COLOR(ACCENT);
+						Draw_texture(&vid_player.audio_track_button[i], row_color, 36, row_y, 248, 16);
+						if (i == vid_player.selected_audio_track_cache)
+							Draw_texture(&background, VID_THEME_COLOR(ACCENT), 36, row_y, 3, 16);
+						Draw_with_crop(&format_str, 44, row_y + 1, FONT_SIZE_TRACK_SELECTION,
+						vid_player.audio_track_button[i].selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
+						DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, 236, 14);
 					}
 
-					Draw_texture(&vid_player.audio_track_ok_button, vid_player.audio_track_ok_button.selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 150, 140, 20, 10);
-					Draw_c("OK", 152.5, 140, FONT_SIZE_OK_BUTTON, DEF_DRAW_BLACK);
+					Draw_texture(&vid_player.audio_track_ok_button, vid_player.audio_track_ok_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE_ALT), 128, 176, 64, 22);
+					Draw_align_c("OK", 128, 176, FONT_SIZE_OK_BUTTON, vid_player.audio_track_ok_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
+					DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 64, 22);
 				}
 
 				if(vid_player.is_selecting_subtitle_track)
 				{
-					Draw_texture(&background, DEF_DRAW_LIME, 40, 20, 240, 140);
-					Draw(&vid_msg[MSG_SUBTITLE_TRACK_DESCRIPTION], 42.5, 25, FONT_SIZE_TRACK_SELECTION_TITLE, DEF_DRAW_BLACK);
+					Draw_texture(&background, VID_THEME_COLOR(BACKGROUND), 28, 18, 264, 184);
+					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 28, 18, 3, 184);
+					Draw(&vid_msg[MSG_SUBTITLE_TRACK_DESCRIPTION], 36, 24, FONT_SIZE_TRACK_SELECTION_TITLE, VID_THEME_COLOR(TEXT));
 
 					for(uint8_t i = 0; i < vid_player.num_of_subtitle_tracks; i++)
 					{
+						double row_y = 48 + (i * 16);
+						uint32_t row_color = (i == vid_player.selected_subtitle_track_cache ? VID_THEME_COLOR(SURFACE_ALT) : VID_THEME_COLOR(SURFACE));
 						Util_str_format(&format_str, "Track %" PRIu8 "(Lang:%s)", i, vid_player.subtitle_info[i].track_lang);
-						Draw_texture(&vid_player.subtitle_track_button[i], vid_player.subtitle_track_button[i].selected ? DEF_DRAW_ORANGE : DEF_DRAW_WEAK_ORANGE, 40, 40 + (i * 12), 240, 12);
-						Draw(&format_str, 42.5, (40 + (i * 12)), FONT_SIZE_TRACK_SELECTION, (i == vid_player.selected_subtitle_track_cache ? DEF_DRAW_RED : color));
+						if (vid_player.subtitle_track_button[i].selected)
+							row_color = VID_THEME_COLOR(ACCENT);
+						Draw_texture(&vid_player.subtitle_track_button[i], row_color, 36, row_y, 248, 16);
+						if (i == vid_player.selected_subtitle_track_cache)
+							Draw_texture(&background, VID_THEME_COLOR(ACCENT), 36, row_y, 3, 16);
+						Draw_with_crop(&format_str, 44, row_y + 1, FONT_SIZE_TRACK_SELECTION,
+						vid_player.subtitle_track_button[i].selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
+						DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, 236, 14);
 					}
 
-					Draw_texture(&vid_player.subtitle_track_ok_button, vid_player.subtitle_track_ok_button.selected ? DEF_DRAW_RED : DEF_DRAW_WEAK_RED, 150, 140, 20, 10);
-					Draw_c("OK", 152.5, 140, FONT_SIZE_OK_BUTTON, DEF_DRAW_BLACK);
+					Draw_texture(&vid_player.subtitle_track_ok_button, vid_player.subtitle_track_ok_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE_ALT), 128, 176, 64, 22);
+					Draw_align_c("OK", 128, 176, FONT_SIZE_OK_BUTTON, vid_player.subtitle_track_ok_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
+					DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 64, 22);
 				}
 
 				if(Util_expl_query_show_flag())
@@ -3366,8 +3505,8 @@ void Vid_main(void)
 
 static void Vid_draw_init_exit_message(void)
 {
-	uint32_t color = DEF_DRAW_BLACK;
-	uint32_t back_color = DEF_DRAW_WHITE;
+	uint32_t color = UI_THEME_COLOR_LIGHT_TEXT;
+	uint32_t back_color = UI_THEME_COLOR_LIGHT_BACKGROUND;
 	Watch_handle_bit watch_handle_bit = (DEF_WATCH_HANDLE_BIT_GLOBAL | DEF_WATCH_HANDLE_BIT_VIDEO_PLAYER);
 	Sem_config config = { 0, };
 	Sem_state state = { 0, };
@@ -3375,11 +3514,8 @@ static void Vid_draw_init_exit_message(void)
 	Sem_get_config(&config);
 	Sem_get_state(&state);
 
-	if (config.is_night)
-	{
-		color = DEF_DRAW_WHITE;
-		back_color = DEF_DRAW_BLACK;
-	}
+	color = UI_THEME_COLOR_MODE(config.is_night, TEXT);
+	back_color = UI_THEME_COLOR_MODE(config.is_night, BACKGROUND);
 
 	//Check if we should update the screen.
 	if(Util_watch_is_changed(watch_handle_bit) || Draw_is_refresh_needed() || !config.is_eco)
@@ -3456,11 +3592,16 @@ static void Vid_fit_to_screen(uint16_t screen_width, uint16_t screen_height, Vid
 {
 	if(vid_player.video_info[eye_index].width != 0 && vid_player.video_info[eye_index].height != 0 && vid_player.video_info[eye_index].sar_width != 0 && vid_player.video_info[eye_index].sar_height != 0)
 	{
-		//Fit to screen size.
-		if((((double)vid_player.video_info[eye_index].width * (vid_player.correct_aspect_ratio ? vid_player.video_info[eye_index].sar_width : 1)) / screen_width) >= (((double)vid_player.video_info[eye_index].height * (vid_player.correct_aspect_ratio ? vid_player.video_info[eye_index].sar_height : 1)) / screen_height))
-			vid_player.video_zoom[eye_index] = (1.0 / (((double)vid_player.video_info[eye_index].width * (vid_player.correct_aspect_ratio ? vid_player.video_info[eye_index].sar_width : 1)) / screen_width));
-		else
-			vid_player.video_zoom[eye_index] = (1.0 / (((double)vid_player.video_info[eye_index].height * (vid_player.correct_aspect_ratio ? vid_player.video_info[eye_index].sar_height : 1)) / screen_height));
+		//Fit preserves the complete frame; fill uses a centered crop to remove letterboxing.
+		double sar_width = vid_player.correct_aspect_ratio ? vid_player.video_info[eye_index].sar_width : 1;
+		double sar_height = vid_player.correct_aspect_ratio ? vid_player.video_info[eye_index].sar_height : 1;
+		double video_width = vid_player.video_info[eye_index].width * sar_width;
+		double video_height = vid_player.video_info[eye_index].height * sar_height;
+		double width_scale = screen_width / video_width;
+		double height_scale = screen_height / video_height;
+		vid_player.video_zoom[eye_index] = vid_player.fill_screen
+			? (width_scale > height_scale ? width_scale : height_scale)
+			: (width_scale < height_scale ? width_scale : height_scale);
 
 		vid_player.video_x_offset[eye_index] = (screen_width - (vid_player.video_info[eye_index].width * vid_player.video_zoom[eye_index] * (vid_player.correct_aspect_ratio ? vid_player.video_info[eye_index].sar_width : 1))) / 2;
 		vid_player.video_y_offset[eye_index] = (screen_height - (vid_player.video_info[eye_index].height * vid_player.video_zoom[eye_index] * (vid_player.correct_aspect_ratio ? vid_player.video_info[eye_index].sar_height : 1))) / 2;
@@ -3471,6 +3612,48 @@ static void Vid_fit_to_screen(uint16_t screen_width, uint16_t screen_height, Vid
 	vid_player.subtitle_x_offset = 0;
 	vid_player.subtitle_y_offset = 0;
 	vid_player.subtitle_zoom = 1;
+}
+
+static void Vid_center_video(uint16_t screen_width, uint16_t screen_height, Vid_eye eye_index)
+{
+	double sar_width = 0;
+	double sar_height = 0;
+	double width = 0;
+	double height = 0;
+
+	if (eye_index >= EYE_MAX || vid_player.video_info[eye_index].width == 0
+	|| vid_player.video_info[eye_index].height == 0 || vid_player.video_zoom[eye_index] <= 0)
+		return;
+	sar_width = vid_player.correct_aspect_ratio ? vid_player.video_info[eye_index].sar_width : 1;
+	sar_height = vid_player.correct_aspect_ratio ? vid_player.video_info[eye_index].sar_height : 1;
+	if (sar_width <= 0 || sar_height <= 0)
+		return;
+	width = vid_player.video_info[eye_index].width * sar_width * vid_player.video_zoom[eye_index];
+	height = vid_player.video_info[eye_index].height * sar_height * vid_player.video_zoom[eye_index];
+	vid_player.video_x_offset[eye_index] = ((screen_width - width) / 2) + (TOP_SCREEN_WIDTH - screen_width);
+	vid_player.video_y_offset[eye_index] = ((screen_height - height) / 2) + (TOP_SCREEN_HEIGHT - screen_height);
+}
+
+static void Vid_draw_bottom_tabs(Vid_menu active_menu, bool portuguese)
+{
+	Draw_image_data background = Draw_get_empty_image();
+	static const Vid_menu menus[3] = { MENU_SETTINGS_0, MENU_SETTINGS_1, MENU_INFO };
+	static const char* const english_labels[3] = { "PLAYBACK", "SYSTEM", "INFO" };
+	static const char* const portuguese_labels[3] = { "REPROD.", "SISTEMA", "INFO" };
+
+	for (uint8_t i = 0; i < 3; i++)
+	{
+		bool selected = (bool)(active_menu == menus[i] || vid_player.menu_button[menus[i]].selected);
+		float x = (float)i * 110;
+		Draw_texture(&vid_player.menu_button[menus[i]],
+		selected ? VID_THEME_COLOR(SURFACE_ALT) : VID_THEME_COLOR(SURFACE),
+		x, 170, 100, UI_THEME_TOUCH_MIN);
+		Draw_align_c(portuguese ? portuguese_labels[i] : english_labels[i],
+		x + 2, 170, UI_THEME_FONT_BUTTON, VID_THEME_COLOR(TEXT),
+		DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 96, UI_THEME_TOUCH_MIN);
+		if (selected)
+			Draw_texture(&background, VID_THEME_COLOR(ACCENT), x + 2, 191, 96, 3);
+	}
 }
 
 static void Vid_change_video_size(double change_px, Vid_eye eye_index)
@@ -4521,7 +4704,6 @@ void Vid_init_thread(void* arg)
 	DEF_LOG_RESULT_SMART(result, Util_sync_create(&vid_player.delay_update_lock, SYNC_TYPE_NON_RECURSIVE_MUTEX), (result == DEF_SUCCESS), result);
 
 	vid_player.banner_texture_handle = UINT32_MAX;
-	vid_player.control_texture_handle = UINT32_MAX;
 
 	vid_player.select_audio_track_button = Draw_get_empty_image();
 	vid_player.texture_filter_button = Draw_get_empty_image();
@@ -4538,6 +4720,9 @@ void Vid_init_thread(void* arg)
 	vid_player.audio_track_ok_button = Draw_get_empty_image();
 	vid_player.subtitle_track_ok_button = Draw_get_empty_image();
 	vid_player.correct_aspect_ratio_button = Draw_get_empty_image();
+	vid_player.center_video_button = Draw_get_empty_image();
+	vid_player.center_video_hud_button = Draw_get_empty_image();
+	vid_player.fill_screen_hud_button = Draw_get_empty_image();
 	vid_player.move_content_button = Draw_get_empty_image();
 	vid_player.remember_video_pos_button = Draw_get_empty_image();
 	vid_player.show_decode_graph_button = Draw_get_empty_image();
@@ -4614,6 +4799,9 @@ void Vid_init_thread(void* arg)
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.volume_button.selected, sizeof(vid_player.volume_button.selected));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.seek_duration_button.selected, sizeof(vid_player.seek_duration_button.selected));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.correct_aspect_ratio_button.selected, sizeof(vid_player.correct_aspect_ratio_button.selected));
+	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.center_video_button.selected, sizeof(vid_player.center_video_button.selected));
+	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.center_video_hud_button.selected, sizeof(vid_player.center_video_hud_button.selected));
+	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.fill_screen_hud_button.selected, sizeof(vid_player.fill_screen_hud_button.selected));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.move_content_button.selected, sizeof(vid_player.move_content_button.selected));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.remember_video_pos_button.selected, sizeof(vid_player.remember_video_pos_button.selected));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.playback_mode_button.selected, sizeof(vid_player.playback_mode_button.selected));
@@ -4676,11 +4864,6 @@ void Vid_init_thread(void* arg)
 	DEF_LOG_RESULT_SMART(result, Draw_load_texture("romfs:/gfx/draw/video_player/banner.t3x",
 	vid_player.banner_texture_handle, vid_player.banner, 0, 2), (result == DEF_SUCCESS), result);
 
-	vid_player.control_texture_handle = Draw_get_free_sheet_num();
-
-	DEF_LOG_RESULT_SMART(result, Draw_load_texture("romfs:/gfx/draw/video_player/controls.t3x",
-	vid_player.control_texture_handle, vid_player.control, 0, 2), (result == DEF_SUCCESS), result);
-
 	Util_str_add(&vid_player.status, "\nStarting threads...");
 	vid_player.thread_run = true;
 	vid_player.thread_suspend = true;
@@ -4742,7 +4925,6 @@ void Vid_exit_thread(void* arg)
 	threadFree(vid_player.read_packet_thread);
 
 	Draw_free_texture(vid_player.banner_texture_handle);
-	Draw_free_texture(vid_player.control_texture_handle);
 
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.state);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.is_selecting_audio_track);
@@ -4794,6 +4976,9 @@ void Vid_exit_thread(void* arg)
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.volume_button.selected);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.seek_duration_button.selected);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.correct_aspect_ratio_button.selected);
+	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.center_video_button.selected);
+	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.center_video_hud_button.selected);
+	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.fill_screen_hud_button.selected);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.move_content_button.selected);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.remember_video_pos_button.selected);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.playback_mode_button.selected);
@@ -7244,7 +7429,8 @@ static bool Vid_library_build_episode_profile(const Lib_item* selected)
 			int season = -1;
 			int episode = -1;
 			const Lib_item* candidate = &index->items[i];
-			if (!candidate->path || (candidate->flags & LIB_ITEM_FLAG_MISSING)
+			if (!candidate->path || (candidate->flags & (LIB_ITEM_FLAG_MISSING | LIB_ITEM_FLAG_AUDIO_ONLY))
+			|| Lib_scan_classify(candidate->path) != LIB_SCAN_KIND_VIDEO
 			|| !Lib_name_parse(candidate->path, title, sizeof(title), &season, &episode, NULL)
 			|| episode < 0 || !Vid_library_title_equal(selected_title, title))
 				continue;

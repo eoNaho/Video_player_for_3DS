@@ -4,10 +4,13 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <time.h>
 
 #include "system/menu.h"
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
+#include "system/sem.h"
 #include "system/util/file.h"
 #include "system/util/hid.h"
 #include "system/util/log.h"
@@ -16,20 +19,20 @@
 #include "system/util/watch.h"
 
 //Defines.
-#define BOX_X						(double)(20)	//Box X offset for error screen in px.
-#define BOX_Y						(double)(20)	//Box Y offset for error screen in px.
-#define BOX_WIDTH					(double)(280)	//Box width for error screen in px.
-#define BOX_HEIGHT					(double)(180)	//Box height for error screen in px.
+#define BOX_X						(double)(12)	//Box X offset for error screen in px.
+#define BOX_Y						(double)(8)	//Box Y offset for error screen in px.
+#define BOX_WIDTH					(double)(296)	//Box width for error screen in px.
+#define BOX_HEIGHT					(double)(224)	//Box height for error screen in px.
 
-#define BUTTON_X					(double)(100)	//Button X offset for error screen in px.
-#define BUTTON_Y					(double)(175)	//Button Y offset for error screen in px.
-#define BUTTON_SPACE_X				(double)(20)	//Button spacing for error screen (for X direction) in px.
-#define BUTTON_WIDTH				(double)(50)	//Button width for error screen in px.
-#define BUTTON_HEIGHT				(double)(20)	//Button height for error screen in px.
+#define BUTTON_X					(double)(72)	//Button X offset for error screen in px.
+#define BUTTON_Y					(double)(202)	//Button Y offset for error screen in px.
+#define BUTTON_SPACE_X				(double)(12)	//Button spacing for error screen (for X direction) in px.
+#define BUTTON_WIDTH				(double)(82)	//Button width for error screen in px.
+#define BUTTON_HEIGHT				(double)(24)	//Button height for error screen in px.
 
-#define ITEM_SPACE_X				(double)(2.5)	//Element spacing for error screen (for X direction) in px.
+#define ITEM_SPACE_X				(double)(10)	//Element spacing for error screen (for X direction) in px.
 #define ITEM_SPACE_Y				(double)(0)		//Element spacing for error screen (for Y direction) in px.
-#define ITEM_HEIGHT					(double)(10)	//Element height for error screen in px.
+#define ITEM_HEIGHT					(double)(20)	//Element height for error screen in px.
 
 //Close.
 #define HID_NOT_INITED_CLOSE_CFM(k)	(bool)(DEF_HID_PR_EM((k).a, 1) || DEF_HID_HD((k).a))
@@ -43,9 +46,9 @@
 #define HID_SAVE_DESEL(k)			(bool)(DEF_HID_PHY_NP(((k)).touch) && DEF_HID_PHY_NP((k).x))
 
 #define FONT_SIZE_ERROR				(float)(24.00)	//Font size for API error in px.
-#define FONT_SIZE_ERROR_CONTENT		(float)(13.50)	//Font size for error content (except description) in px.
-#define FONT_SIZE_ERROR_DESCRIPTION	(float)(12.50)	//Font size for error description in px.
-#define FONT_SIZE_BUTTON			(float)(11.25)	//Font size for buttons in px.
+#define FONT_SIZE_ERROR_CONTENT		(float)(14.50)	//Font size for error content (except description) in px.
+#define FONT_SIZE_ERROR_DESCRIPTION	(float)(13.50)	//Font size for error description in px.
+#define FONT_SIZE_BUTTON			(float)(13.50)	//Font size for buttons in px.
 
 //Typedefs.
 //N/A.
@@ -277,58 +280,78 @@ void Util_err_main(const Hid_info* key)
 
 void Util_err_draw(void)
 {
-	uint32_t button_text_color = DEF_DRAW_BLACK;
-	uint32_t ok_button_color = DEF_DRAW_BLACK;
-	uint32_t save_button_color = DEF_DRAW_BLACK;
+	Sem_config config = { 0, };
+	uint32_t text_color = 0;
+	uint32_t secondary_color = 0;
+	uint32_t background_color = 0;
+	uint32_t surface_color = 0;
+	uint32_t accent_color = 0;
+	uint32_t selected_text_color = 0;
+	uint32_t button_text_color = 0;
+	uint32_t ok_button_color = 0;
+	uint32_t save_button_color = 0;
 	double draw_x = 0;
 	double draw_y = 0;
+	bool portuguese = false;
 	Draw_image_data background = Draw_get_empty_image();
+	Sem_get_config(&config);
+	text_color = UI_THEME_COLOR_MODE(config.is_night, TEXT);
+	secondary_color = UI_THEME_COLOR_MODE(config.is_night, SECONDARY_TEXT);
+	background_color = UI_THEME_COLOR_MODE(config.is_night, BACKGROUND);
+	surface_color = UI_THEME_COLOR_MODE(config.is_night, SURFACE);
+	accent_color = UI_THEME_COLOR_MODE(config.is_night, ACCENT);
+	selected_text_color = UI_THEME_COLOR_MODE(config.is_night, SELECTED_TEXT);
+	portuguese = (bool)(strncmp(config.lang, "pt", 2) == 0);
 
 	if(!util_err_init)
 	{
-		Draw_with_background_c("Error API is not initialized.\nPress A to close.", BOX_X, BOX_Y, FONT_SIZE_ERROR, DEF_DRAW_RED,
-		DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, BOX_WIDTH, BOX_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &background, DEF_DRAW_CYAN);
+		Draw_with_background_c(portuguese ? "O painel de erro não foi iniciado.\nPressione A para fechar."
+		: "Error screen is not initialized.\nPress A to close.", BOX_X, BOX_Y, FONT_SIZE_ERROR, text_color,
+		DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, BOX_WIDTH, BOX_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &background, surface_color);
 		return;
 	}
 
-	button_text_color = (util_err_save_request ? DEF_DRAW_WEAK_BLACK : DEF_DRAW_BLACK);
-	ok_button_color = (util_err_ok_button.selected ? DEF_DRAW_ORANGE : DEF_DRAW_WEAK_ORANGE);
-	save_button_color = (util_err_save_button.selected ? DEF_DRAW_ORANGE : DEF_DRAW_WEAK_ORANGE);
+	button_text_color = (util_err_save_request ? secondary_color : text_color);
+	ok_button_color = (util_err_ok_button.selected ? accent_color : surface_color);
+	save_button_color = (util_err_save_button.selected ? accent_color : surface_color);
 
-	Draw_texture(&background, DEF_DRAW_CYAN, BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT);
+	Draw_texture(&background, background_color, BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT);
+	Draw_texture(&background, UI_THEME_COLOR_MODE(config.is_night, DANGER), BOX_X, BOX_Y, 3, BOX_HEIGHT);
 
 	draw_x = (BOX_X + ITEM_SPACE_X);
-	draw_y = (BOX_Y + ITEM_SPACE_Y);
-	Draw_c("Summary: ", draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, DEF_DRAW_RED);
+	draw_y = (BOX_Y + 8 + ITEM_SPACE_Y);
+	Draw_c(portuguese ? "Resumo:" : "Summary:", draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, UI_THEME_COLOR_MODE(config.is_night, DANGER));
 
 	draw_y += (ITEM_HEIGHT + ITEM_SPACE_Y);
-	Draw(&util_err_summary, draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, DEF_DRAW_BLACK);
+	Draw(&util_err_summary, draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, text_color);
 
 	draw_y += (ITEM_HEIGHT + ITEM_SPACE_Y);
-	Draw_c("Location: ", draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, DEF_DRAW_RED);
+	Draw_c(portuguese ? "Local:" : "Location:", draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, UI_THEME_COLOR_MODE(config.is_night, DANGER));
 
 	draw_y += (ITEM_HEIGHT + ITEM_SPACE_Y);
-	Draw(&util_err_location, draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, DEF_DRAW_BLACK);
+	Draw(&util_err_location, draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, text_color);
 
 	draw_y += (ITEM_HEIGHT + ITEM_SPACE_Y);
-	Draw_c("Error code: ", draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, DEF_DRAW_RED);
+	Draw_c(portuguese ? "Código:" : "Error code:", draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, UI_THEME_COLOR_MODE(config.is_night, DANGER));
 
 	draw_y += (ITEM_HEIGHT + ITEM_SPACE_Y);
-	Draw(&util_err_code, draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, DEF_DRAW_BLACK);
+	Draw(&util_err_code, draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, text_color);
 
 	draw_y += (ITEM_HEIGHT + ITEM_SPACE_Y);
-	Draw_c("Description: ", draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, DEF_DRAW_RED);
+	Draw_c(portuguese ? "Descrição:" : "Description:", draw_x, draw_y, FONT_SIZE_ERROR_CONTENT, UI_THEME_COLOR_MODE(config.is_night, DANGER));
 
 	draw_y += (ITEM_HEIGHT + ITEM_SPACE_Y);
-	Draw(&util_err_description, draw_x, draw_y, FONT_SIZE_ERROR_DESCRIPTION, DEF_DRAW_BLACK);
+	Draw(&util_err_description, draw_x, draw_y, FONT_SIZE_ERROR_DESCRIPTION, text_color);
 
 	draw_x = BUTTON_X;
 	draw_y = BUTTON_Y;
-	Draw_with_background_c("OK(A)", draw_x, draw_y, FONT_SIZE_BUTTON, button_text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
+	Draw_with_background_c("OK (A)", draw_x, draw_y, FONT_SIZE_BUTTON,
+	util_err_ok_button.selected ? selected_text_color : button_text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 	BUTTON_WIDTH, BUTTON_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &util_err_ok_button, ok_button_color);
 
 	draw_x += (BUTTON_WIDTH + BUTTON_SPACE_X);
-	Draw_with_background_c("SAVE(X)", draw_x, draw_y, FONT_SIZE_BUTTON, button_text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
+	Draw_with_background_c(portuguese ? "SALVAR (X)" : "SAVE (X)", draw_x, draw_y, FONT_SIZE_BUTTON,
+	util_err_save_button.selected ? selected_text_color : button_text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
 	BUTTON_WIDTH, BUTTON_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &util_err_save_button, save_button_color);
 }
 

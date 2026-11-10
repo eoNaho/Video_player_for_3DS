@@ -10,6 +10,8 @@
 #include "3ds.h"
 
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
+#include "system/sem.h"
 #include "system/util/err_types.h"
 #include "system/util/log.h"
 #include "system/util/str.h"
@@ -21,11 +23,11 @@
 #define STACK_SIZE				(uint32_t)(2048)	//Stack size for worker threads.
 
 #define NVS_USAGE_X				(float)(300)		//X offset for NVS usage info in px.
-#define NVS_USAGE_Y				(float)(120)		//Y offset for NVS usage info in px.
+#define NVS_USAGE_Y				(float)(141)		//Y offset for NVS usage info in px.
 #define NVS_USAGE_WIDTH			(float)(100)		//Element width for NVS usage info in px.
-#define NVS_USAGE_HEIGHT		(float)(30)			//Element height for NVS usage info in px.
+#define NVS_USAGE_HEIGHT		(float)(36)			//Element height for NVS usage info in px.
 
-#define FONT_SIZE_NVS_USAGE		(float)(11.00)		//Font size for NVS usage info in px.
+#define FONT_SIZE_NVS_USAGE		(float)(UI_THEME_FONT_CAPTION)		//Font size for NVS usage info in px.
 
 //Typedefs.
 //N/A.
@@ -218,11 +220,13 @@ void Util_nvs_usage_draw(void)
 	uint32_t char_length = 0;
 	char msg_cache[64] = { 0, };
 	Draw_image_data background = Draw_get_empty_image();
+	Sem_config config = { 0, };
 	Str_data read_size_string = { 0, };
 	Str_data write_size_string = { 0, };
 
 	if(!util_nvs_usage_init)
 		return;
+	Sem_get_config(&config);
 
 	Util_format_size(Util_nvs_usage_get_nvs_read_speed(), &read_size_string);
 	Util_format_size(Util_nvs_usage_get_nvs_write_speed(), &write_size_string);
@@ -235,8 +239,9 @@ void Util_nvs_usage_draw(void)
 	Util_str_free(&read_size_string);
 	Util_str_free(&write_size_string);
 
-	Draw_with_scale_c(msg_cache, NVS_USAGE_X, NVS_USAGE_Y, FONT_SIZE_NVS_USAGE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT, DEF_DRAW_BLACK,
-	DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, NVS_USAGE_WIDTH, NVS_USAGE_HEIGHT, DRAW_BACKGROUND_UNDER_TEXT, &background, DEF_DRAW_WEAK_WHITE);
+	Draw_with_scale_c(msg_cache, NVS_USAGE_X, NVS_USAGE_Y, FONT_SIZE_NVS_USAGE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT,
+	UI_THEME_COLOR_MODE(config.is_night, TEXT), DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, NVS_USAGE_WIDTH, NVS_USAGE_HEIGHT,
+	DRAW_BACKGROUND_UNDER_TEXT, &background, UI_THEME_COLOR_MODE(config.is_night, SURFACE));
 }
 
 Result __wrap_FSUSER_CreateFile(FS_Archive archive, FS_Path path, u32 attributes, u64 fileSize)

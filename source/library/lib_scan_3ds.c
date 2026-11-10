@@ -402,7 +402,7 @@ static bool Lib_scan_3ds_scan_dir(Lib_scan_3ds_ctx* ctx, const char* dir, uint32
 			}
 
 			kind = Lib_scan_classify(path);
-			if (kind == LIB_SCAN_KIND_OTHER)
+			if (kind != LIB_SCAN_KIND_VIDEO)
 			{
 				ctx->stats.skipped++;
 				free(path);

@@ -11,6 +11,8 @@
 #include "citro3d.h"
 
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
+#include "system/sem.h"
 #include "system/util/err_types.h"
 #include "system/util/log.h"
 #include "system/util/sync.h"
@@ -21,11 +23,11 @@
 #define STACK_SIZE				(uint32_t)(2048)	//Stack size for worker threads.
 
 #define GPU_USAGE_X				(float)(300)		//X offset for GPU usage info in px.
-#define GPU_USAGE_Y				(float)(77.5)		//Y offset for GPU usage info in px.
+#define GPU_USAGE_Y				(float)(83)		//Y offset for GPU usage info in px.
 #define GPU_USAGE_WIDTH			(float)(100)		//Element width for GPU usage info in px.
-#define GPU_USAGE_HEIGHT		(float)(10)			//Element height for GPU usage info in px.
+#define GPU_USAGE_HEIGHT		(float)(16)			//Element height for GPU usage info in px.
 
-#define FONT_SIZE_GPU_USAGE		(float)(11.00)		//Font size for GPU usage info in px.
+#define FONT_SIZE_GPU_USAGE		(float)(UI_THEME_FONT_CAPTION)		//Font size for GPU usage info in px.
 
 //Typedefs.
 //N/A.
@@ -141,15 +143,18 @@ void Util_gpu_usage_draw(void)
 {
 	char msg_cache[32] = { 0, };
 	Draw_image_data background = Draw_get_empty_image();
+	Sem_config config = { 0, };
 
 	if(!util_gpu_usage_init)
 		return;
+	Sem_get_config(&config);
 
 	//%f expects double.
 	snprintf(msg_cache, sizeof(msg_cache), "GPU: %.1f%%", (double)Util_gpu_usage_get_gpu_usage());
 
-	Draw_with_scale_c(msg_cache, GPU_USAGE_X, GPU_USAGE_Y, FONT_SIZE_GPU_USAGE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT, DEF_DRAW_BLACK,
-	DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, GPU_USAGE_WIDTH, GPU_USAGE_HEIGHT, DRAW_BACKGROUND_UNDER_TEXT, &background, DEF_DRAW_WEAK_WHITE);
+	Draw_with_scale_c(msg_cache, GPU_USAGE_X, GPU_USAGE_Y, FONT_SIZE_GPU_USAGE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT,
+	UI_THEME_COLOR_MODE(config.is_night, TEXT), DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, GPU_USAGE_WIDTH, GPU_USAGE_HEIGHT,
+	DRAW_BACKGROUND_UNDER_TEXT, &background, UI_THEME_COLOR_MODE(config.is_night, SURFACE));
 }
 
 void __wrap_C3D_FrameEnd(u8 flags)

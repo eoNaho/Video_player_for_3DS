@@ -10,6 +10,8 @@
 #include "3ds.h"
 
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
+#include "system/sem.h"
 #include "system/util/err_types.h"
 #include "system/util/log.h"
 #include "system/util/str.h"
@@ -21,11 +23,11 @@
 #define STACK_SIZE				(uint32_t)(2048)	//Stack size for worker threads.
 
 #define RAM_USAGE_X				(float)(300)		//X offset for RAM usage info in px.
-#define RAM_USAGE_Y				(float)(150)		//Y offset for RAM usage info in px.
+#define RAM_USAGE_Y				(float)(180)		//Y offset for RAM usage info in px.
 #define RAM_USAGE_WIDTH			(float)(100)		//Element width for RAM usage info in px.
-#define RAM_USAGE_HEIGHT		(float)(30)			//Element height for RAM usage info in px.
+#define RAM_USAGE_HEIGHT		(float)(36)			//Element height for RAM usage info in px.
 
-#define FONT_SIZE_RAM_USAGE		(float)(11.00)		//Font size for RAM usage info in px.
+#define FONT_SIZE_RAM_USAGE		(float)(UI_THEME_FONT_CAPTION)		//Font size for RAM usage info in px.
 
 //Typedefs.
 //N/A.
@@ -197,11 +199,13 @@ void Util_ram_usage_draw(void)
 	double usage = 0;
 	char msg_cache[96] = { 0, };
 	Draw_image_data background = Draw_get_empty_image();
+	Sem_config config = { 0, };
 	Str_data used_size_string = { 0, };
 	Str_data total_size_string = { 0, };
 
 	if(!util_ram_usage_init)
 		return;
+	Sem_get_config(&config);
 
 	used = (Util_ram_usage_get_used_ram(false) + Util_ram_usage_get_used_ram(true));
 	total = (Util_ram_usage_get_total_ram(false) + Util_ram_usage_get_total_ram(true));
@@ -219,8 +223,9 @@ void Util_ram_usage_draw(void)
 	Util_str_free(&used_size_string);
 	Util_str_free(&total_size_string);
 
-	Draw_with_scale_c(msg_cache, RAM_USAGE_X, RAM_USAGE_Y, FONT_SIZE_RAM_USAGE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT, DEF_DRAW_BLACK,
-	DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, RAM_USAGE_WIDTH, RAM_USAGE_HEIGHT, DRAW_BACKGROUND_UNDER_TEXT, &background, DEF_DRAW_WEAK_WHITE);
+	Draw_with_scale_c(msg_cache, RAM_USAGE_X, RAM_USAGE_Y, FONT_SIZE_RAM_USAGE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT,
+	UI_THEME_COLOR_MODE(config.is_night, TEXT), DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, RAM_USAGE_WIDTH, RAM_USAGE_HEIGHT,
+	DRAW_BACKGROUND_UNDER_TEXT, &background, UI_THEME_COLOR_MODE(config.is_night, SURFACE));
 }
 
 void Util_ram_usage_calculate_thread(void* arg)

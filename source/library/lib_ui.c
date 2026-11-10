@@ -1,5 +1,8 @@
 #include "library/lib_ui.h"
 
+#include "library/lib_name.h"
+#include "library/lib_scan.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -89,6 +92,27 @@ static bool Lib_ui_title_matches(const char* title, const char* search)
 		(void)Lib_ui_next_codepoint(&start);
 	}
 	return false;
+}
+
+static bool Lib_ui_item_matches_filter(Lib_ui_filter filter, const Lib_item* item)
+{
+	char title[256] = { 0, };
+	int episode = -1;
+	bool is_series = false;
+
+	if (filter == LIB_UI_FILTER_ALL)
+		return true;
+	if (!item || !item->path || (item->flags & LIB_ITEM_FLAG_AUDIO_ONLY)
+	|| Lib_scan_classify(item->path) != LIB_SCAN_KIND_VIDEO)
+		return false;
+	if (filter == LIB_UI_FILTER_VIDEO)
+		return true;
+	if (filter != LIB_UI_FILTER_MOVIES && filter != LIB_UI_FILTER_SERIES)
+		return false;
+	if (!Lib_name_parse(item->path, title, sizeof(title), NULL, &episode, NULL))
+		return filter == LIB_UI_FILTER_MOVIES;
+	is_series = (bool)(episode >= 0);
+	return (filter == LIB_UI_FILTER_SERIES) ? is_series : !is_series;
 }
 
 void Lib_ui_init(Lib_ui* ui)
@@ -186,13 +210,13 @@ bool Lib_ui_rebuild(Lib_ui* ui, const Lib_index* index)
 		return false;
 	}
 
-	if (ui->search[0] != 0x00)
 	{
 		size_t filtered_count = 0;
 		for (size_t i = 0; i < count; i++)
 		{
 			const Lib_item* item = Lib_index_find_id_const(index, ids[i]);
-			if (item && Lib_ui_title_matches(Lib_item_get_title(item), ui->search))
+			if (item && Lib_ui_item_matches_filter(ui->filter, item)
+			&& Lib_ui_title_matches(Lib_item_get_title(item), ui->search))
 				ids[filtered_count++] = ids[i];
 		}
 		count = filtered_count;
@@ -287,6 +311,16 @@ bool Lib_ui_set_search(Lib_ui* ui, const char* search, const Lib_index* index)
 	ui->cursor = 0;
 	ui->offset = 0;
 	return Lib_ui_rebuild(ui, index);
+}
+
+void Lib_ui_set_filter(Lib_ui* ui, Lib_ui_filter filter)
+{
+	if (!ui || filter > LIB_UI_FILTER_SERIES || ui->filter == filter)
+		return;
+	ui->filter = filter;
+	ui->cursor = 0;
+	ui->offset = 0;
+	Lib_ui_invalidate(ui);
 }
 
 void Lib_ui_set_grid_mode(Lib_ui* ui, bool enabled)

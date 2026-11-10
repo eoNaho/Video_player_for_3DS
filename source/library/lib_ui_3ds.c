@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "library/lib_library_3ds.h"
+#include "library/lib_name.h"
 #include "library/lib_thumb.h"
 #include "library/lib_ui.h"
 #include "system/draw/draw.h"
@@ -17,18 +18,19 @@
 #include "system/util/sync.h"
 
 #define LIB_UI_3DS_VISIBLE_ITEMS		(uint8_t)(8)
-#define LIB_UI_3DS_ROWS					(uint8_t)(7)
-#define LIB_UI_3DS_GRID_VISIBLE_ITEMS	(size_t)(8)
+#define LIB_UI_3DS_ROWS					(uint8_t)(6)
+#define LIB_UI_3DS_GRID_VISIBLE_ITEMS	(size_t)(4)
 #define LIB_UI_3DS_GRID_COLUMNS			(size_t)(2)
-#define LIB_UI_3DS_LIST_ROW_HEIGHT		UI_THEME_TOUCH_MIN
+#define LIB_UI_3DS_LIST_ROW_HEIGHT		(float)(28)
 #define LIB_UI_3DS_LIST_ROW_X			(float)(4)
 #define LIB_UI_3DS_LIST_ROW_Y			(float)(22)
 #define LIB_UI_3DS_LIST_ROW_WIDTH		(float)(312)
 #define LIB_UI_3DS_GRID_CELL_WIDTH		(float)(156)
-#define LIB_UI_3DS_GRID_CELL_HEIGHT		(float)(42)
+#define LIB_UI_3DS_GRID_CELL_HEIGHT		(float)(82)
 #define LIB_UI_3DS_GRID_X				(float)(4)
 #define LIB_UI_3DS_GRID_Y				(float)(22)
 #define LIB_UI_3DS_BUTTON_ROW_HEIGHT		UI_THEME_TOUCH_MIN
+#define LIB_UI_3DS_RAIL_WIDTH			(float)(3)
 #define LIB_UI_3DS_BUTTON_ROW_0_Y		(float)(192)
 #define LIB_UI_3DS_BUTTON_ROW_1_Y		(float)(216)
 #define LIB_UI_3DS_THUMB_WIDTH			(uint32_t)(128)
@@ -53,6 +55,7 @@ static uint64_t library_thumb_clock = 0;
 static bool library_ui_inited = false;
 static bool library_ui_open = false;
 static bool library_keep_paused_after_play = false;
+static bool library_ui_dark_theme = true;
 static bool library_queue_view = false;
 static Lib_queue* library_queue = NULL;
 static Sync_data* library_queue_lock = NULL;
@@ -60,6 +63,14 @@ static size_t library_queue_cursor = 0;
 static size_t library_queue_offset = 0;
 static bool library_is_portuguese = false;
 static Lib_ui_3ds_queue_change_callback library_queue_change_callback = NULL;
+
+#define LIB_UI_3DS_COLOR_BACKGROUND	(library_ui_dark_theme ? UI_THEME_COLOR_BACKGROUND : UI_THEME_COLOR_LIGHT_BACKGROUND)
+#define LIB_UI_3DS_COLOR_SURFACE		(library_ui_dark_theme ? UI_THEME_COLOR_SURFACE : UI_THEME_COLOR_LIGHT_SURFACE)
+#define LIB_UI_3DS_COLOR_SURFACE_ALT	(library_ui_dark_theme ? UI_THEME_COLOR_SURFACE_ALT : UI_THEME_COLOR_LIGHT_SURFACE_ALT)
+#define LIB_UI_3DS_COLOR_ACCENT		(library_ui_dark_theme ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_LIGHT_ACCENT)
+#define LIB_UI_3DS_COLOR_TEXT			(library_ui_dark_theme ? UI_THEME_COLOR_TEXT : UI_THEME_COLOR_LIGHT_TEXT)
+#define LIB_UI_3DS_COLOR_SECONDARY	(library_ui_dark_theme ? UI_THEME_COLOR_SECONDARY_TEXT : UI_THEME_COLOR_LIGHT_SECONDARY_TEXT)
+#define LIB_UI_3DS_COLOR_RAIL_OFF		(library_ui_dark_theme ? UI_THEME_COLOR_RAIL_OFF : UI_THEME_COLOR_LIGHT_RAIL_OFF)
 
 static void Lib_ui_3ds_request_redraw(void)
 {
@@ -69,7 +80,8 @@ static void Lib_ui_3ds_request_redraw(void)
 static void Lib_ui_3ds_set_grid(bool enabled)
 {
 	Lib_ui_set_grid_mode(&library_ui, enabled);
-	(void)Lib_ui_set_rows(&library_ui, enabled ? (uint8_t)LIB_UI_3DS_GRID_VISIBLE_ITEMS : LIB_UI_3DS_ROWS);
+	(void)Lib_ui_set_rows(&library_ui, enabled
+	? (uint8_t)LIB_UI_3DS_GRID_VISIBLE_ITEMS : LIB_UI_3DS_ROWS);
 	Lib_ui_3ds_request_redraw();
 }
 
@@ -106,6 +118,7 @@ void Lib_ui_3ds_init(void)
 		return;
 
 	Lib_ui_init(&library_ui);
+	Lib_ui_set_filter(&library_ui, LIB_UI_FILTER_VIDEO);
 	(void)Lib_ui_set_rows(&library_ui, LIB_UI_3DS_ROWS);
 	library_ui_inited = true;
 }
@@ -335,6 +348,34 @@ Lib_ui_3ds_play_callback play_callback)
 	Lib_ui_3ds_play_item(Lib_ui_current(&library_ui, index), play_callback);
 }
 
+static void Lib_ui_3ds_show_tab(Lib_view_tab tab, const Lib_index* index)
+{
+	Lib_ui_set_filter(&library_ui, LIB_UI_FILTER_VIDEO);
+	(void)Lib_ui_set_tab(&library_ui, tab, index);
+	Lib_ui_3ds_request_redraw();
+}
+
+static void Lib_ui_3ds_show_filter(Lib_ui_filter filter, const Lib_index* index)
+{
+	Lib_ui_set_filter(&library_ui, filter);
+	(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_ALL, index);
+	Lib_ui_3ds_request_redraw();
+}
+
+static void Lib_ui_3ds_toggle_favorite(const Lib_index* index)
+{
+	const Lib_item* item = Lib_ui_current(&library_ui, index);
+	if (!item)
+		return;
+	if (Lib_library_set_favorite(item->id,
+	(bool)((item->flags & LIB_ITEM_FLAG_FAVORITE) == 0)))
+	{
+		Lib_ui_invalidate(&library_ui);
+		Lib_ui_3ds_rebuild(index);
+		Lib_ui_3ds_request_redraw();
+	}
+}
+
 static Lib_sort_key Lib_ui_3ds_next_sort(Lib_sort_key key, bool forward)
 {
 	if (forward)
@@ -403,31 +444,31 @@ Lib_ui_3ds_play_callback play_callback)
 		}
 		else if (touch_y >= LIB_UI_3DS_BUTTON_ROW_1_Y)
 		{
-			if (touch_x < 64)
+			if (touch_x < 54)
+				library_queue_view = true;
+			else if (touch_x < 107)
 				Lib_ui_3ds_queue_add_current(index);
-			else if (touch_x < 128)
+			else if (touch_x < 160)
 				Lib_ui_3ds_play_browser_current(index, play_callback);
-			else if (touch_x < 192)
+			else if (touch_x < 214)
 				Lib_ui_3ds_open_search(index);
-			else if (touch_x < 256)
-			{
+			else if (touch_x < 267)
 				Lib_ui_3ds_set_grid(!library_ui.grid_mode);
-			}
 			else
 				Lib_ui_3ds_close();
 		}
 		else if (touch_y >= LIB_UI_3DS_BUTTON_ROW_0_Y)
 		{
 			if (touch_x < 64)
-				(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_CONTINUE, index);
+				Lib_ui_3ds_show_tab(LIB_VIEW_TAB_CONTINUE, index);
 			else if (touch_x < 128)
-				(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_RECENT, index);
+				Lib_ui_3ds_show_tab(LIB_VIEW_TAB_RECENT, index);
 			else if (touch_x < 192)
-				(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_ALL, index);
+				Lib_ui_3ds_show_filter(LIB_UI_FILTER_MOVIES, index);
 			else if (touch_x < 256)
-				(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_FAVORITES, index);
+				Lib_ui_3ds_show_filter(LIB_UI_FILTER_SERIES, index);
 			else
-				library_queue_view = true;
+				Lib_ui_3ds_show_tab(LIB_VIEW_TAB_FAVORITES, index);
 			Lib_ui_3ds_request_redraw();
 		}
 		else if (touch_y >= LIB_UI_3DS_LIST_ROW_Y)
@@ -487,7 +528,7 @@ Lib_ui_3ds_play_callback play_callback)
 		else if (library_ui.grid_mode)
 			Lib_ui_move_direction(&library_ui, -1, 0);
 		else
-			(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_CONTINUE, index);
+			Lib_ui_3ds_show_filter(LIB_UI_FILTER_MOVIES, index);
 	}
 	else if (DEF_HID_PR_EM(key->d_right, 1) || DEF_HID_HD(key->d_right))
 	{
@@ -502,12 +543,12 @@ Lib_ui_3ds_play_callback play_callback)
 		else if (library_ui.grid_mode)
 			Lib_ui_move_direction(&library_ui, 1, 0);
 		else
-			(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_ALL, index);
+			Lib_ui_3ds_show_filter(LIB_UI_FILTER_SERIES, index);
 	}
 	else if (DEF_HID_PR_EM(key->l, 1) || DEF_HID_HD(key->l))
-		(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_RECENT, index);
+		Lib_ui_3ds_show_tab(LIB_VIEW_TAB_RECENT, index);
 	else if (DEF_HID_PR_EM(key->r, 1) || DEF_HID_HD(key->r))
-		(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_FAVORITES, index);
+		Lib_ui_3ds_toggle_favorite(index);
 	else if (library_queue_view && (DEF_HID_PR_EM(key->x, 1) || DEF_HID_HD(key->x)))
 		Lib_ui_3ds_queue_remove_current();
 	else if (library_queue_view && (DEF_HID_PR_EM(key->y, 1) || DEF_HID_HD(key->y)))
@@ -546,19 +587,23 @@ Lib_ui_3ds_play_callback play_callback)
 		Lib_ui_3ds_request_redraw();
 }
 
-static const char* Lib_ui_3ds_tab_name(Lib_view_tab tab)
+static const char* Lib_ui_3ds_screen_title(void)
 {
-	switch (tab)
+	if (library_ui.filter == LIB_UI_FILTER_MOVIES)
+		return Lib_ui_3ds_text("MOVIES", "FILMES");
+	if (library_ui.filter == LIB_UI_FILTER_SERIES)
+		return Lib_ui_3ds_text("SERIES", "SÉRIES");
+	switch (library_ui.tab)
 	{
 		case LIB_VIEW_TAB_CONTINUE:
-			return Lib_ui_3ds_text("CONTINUE", "SEGUIR");
+			return Lib_ui_3ds_text("CONTINUE", "CONTINUAR");
 		case LIB_VIEW_TAB_RECENT:
 			return Lib_ui_3ds_text("RECENT", "RECENTES");
 		case LIB_VIEW_TAB_FAVORITES:
 			return Lib_ui_3ds_text("FAVORITES", "FAVORITOS");
 		case LIB_VIEW_TAB_ALL:
 		default:
-			return Lib_ui_3ds_text("ALL", "TODOS");
+			return Lib_ui_3ds_text("MOVIES + SERIES", "FILMES + SÉRIES");
 	}
 }
 
@@ -597,78 +642,76 @@ static const char* Lib_ui_3ds_sort_name(Lib_sort_key key)
 	}
 }
 
-static const char* Lib_ui_3ds_codec_name(Lib_video_codec codec)
+static bool Lib_ui_3ds_episode_info(const Lib_item* item, int* season, int* episode)
 {
-	switch (codec)
-	{
-		case LIB_VIDEO_CODEC_H264:
-			return "H264";
-		case LIB_VIDEO_CODEC_MPEG4:
-			return "MPEG4";
-		case LIB_VIDEO_CODEC_MPEG2:
-			return "MPEG2";
-		case LIB_VIDEO_CODEC_MPEG1:
-			return "MPEG1";
-		case LIB_VIDEO_CODEC_VP8:
-			return "VP8";
-		case LIB_VIDEO_CODEC_VP9:
-			return "VP9";
-		case LIB_VIDEO_CODEC_AV1:
-			return "AV1";
-		case LIB_VIDEO_CODEC_H266:
-			return "H266";
-		case LIB_VIDEO_CODEC_UNKNOWN:
-		default:
-			return NULL;
-	}
+	char title[256] = { 0, };
+	int parsed_season = -1;
+	int parsed_episode = -1;
+	if (!item || !item->path || !Lib_name_parse(item->path, title, sizeof(title),
+	&parsed_season, &parsed_episode, NULL) || parsed_episode < 0)
+		return false;
+	if (season)
+		*season = parsed_season;
+	if (episode)
+		*episode = parsed_episode;
+	return true;
 }
 
-static const char* Lib_ui_3ds_resolution_name(const Lib_item* item)
+static const char* Lib_ui_3ds_poster_label(const Lib_item* item)
 {
-	if (!item || item->height == 0)
-		return NULL;
-	if (item->height >= 2000)
-		return "2160P";
-	if (item->height >= 1000)
-		return "1080P";
-	if (item->height >= 700)
-		return "720P";
-	if (item->height >= 400)
-		return "480P";
-	return "LOW";
+	bool is_episode = Lib_ui_3ds_episode_info(item, NULL, NULL);
+	return Lib_ui_3ds_text(is_episode ? "SHOW" : "FILM",
+	is_episode ? "SÉRIE" : "FILME");
 }
 
-static void Lib_ui_3ds_format_tags(const Lib_item* item, char* out, size_t out_size)
+static void Lib_ui_3ds_format_meta(const Lib_item* item, char* out, size_t out_size)
 {
-	const char* codec = NULL;
-	const char* resolution = NULL;
-	bool known = false;
+	int season = -1;
+	int episode = -1;
+	int year = -1;
+	bool is_series = false;
+	uint32_t progress = 0;
+	char status[32] = { 0, };
 
 	if (!out || out_size == 0 || !item)
 		return;
-	codec = Lib_ui_3ds_codec_name(item->video_codec);
-	resolution = Lib_ui_3ds_resolution_name(item);
-	known = (bool)(item->duration_ms > 0 || item->width > 0 || item->height > 0
-	|| item->video_codec != LIB_VIDEO_CODEC_UNKNOWN || item->audio_tracks > 0 || item->subtitle_tracks > 0);
-	out[0] = 0x00;
-	if (codec)
-		snprintf(out + strlen(out), out_size - strlen(out), "[%s] ", codec);
-	if (resolution)
-		snprintf(out + strlen(out), out_size - strlen(out), "[%s] ", resolution);
-	if (item->flags & LIB_ITEM_FLAG_3D)
-		snprintf(out + strlen(out), out_size - strlen(out), "[3D] ");
-	if (item->audio_tracks > 1)
-		snprintf(out + strlen(out), out_size - strlen(out), "[A:%u] ", (unsigned)item->audio_tracks);
-	if (item->subtitle_tracks > 0)
-		snprintf(out + strlen(out), out_size - strlen(out), "[S:%u] ", (unsigned)item->subtitle_tracks);
-	if (item->flags & LIB_ITEM_FLAG_MISSING)
-		snprintf(out + strlen(out), out_size - strlen(out), library_is_portuguese ? "[AUSENTE]" : "[MISSING]");
-	else if (item->flags & LIB_ITEM_FLAG_UNSUPPORTED)
-		snprintf(out + strlen(out), out_size - strlen(out), library_is_portuguese ? "[INCOMPAT.]" : "[UNSUPPORTED]");
-	else if (known)
-		snprintf(out + strlen(out), out_size - strlen(out), "[OK]");
+	is_series = Lib_ui_3ds_episode_info(item, &season, &episode);
+	if (item->flags & LIB_ITEM_FLAG_WATCHED)
+		snprintf(status, sizeof(status), "%s", Lib_ui_3ds_text("WATCHED", "ASSISTIDO"));
+	else if (item->duration_ms > 0 && item->position_ms > 0)
+	{
+		progress = (uint32_t)(((uint64_t)item->position_ms * 100) / item->duration_ms);
+		if (progress > 100)
+			progress = 100;
+		snprintf(status, sizeof(status), "%s %u%%",
+		Lib_ui_3ds_text("RESUME", "RETOMAR"), (unsigned)progress);
+	}
+	if (is_series)
+		snprintf(out, out_size, "%s %02d  %s %02d%s%s",
+		library_is_portuguese ? "TEMP." : "S",
+		season > 0 ? season : 0,
+		library_is_portuguese ? "EP." : "E",
+		episode,
+		status[0] ? "  |  " : "", status);
 	else
-		snprintf(out + strlen(out), out_size - strlen(out), "[?]");
+	{
+		(void)Lib_name_parse(item->path, out, out_size, NULL, NULL, &year);
+		if (year > 0)
+			snprintf(out, out_size, "%d", year);
+		else if (item->duration_ms > 0)
+		{
+			uint32_t minutes = item->duration_ms / 60000;
+			if (minutes >= 60)
+				snprintf(out, out_size, "%uh %02umin",
+				(unsigned)(minutes / 60), (unsigned)(minutes % 60));
+			else
+				snprintf(out, out_size, "%umin", (unsigned)minutes);
+		}
+		else
+			snprintf(out, out_size, "%s", Lib_ui_3ds_text("FEATURE FILM", "LONGA-METRAGEM"));
+		if (status[0] && strlen(out) < out_size)
+			snprintf(out + strlen(out), out_size - strlen(out), "  |  %s", status);
+	}
 }
 
 static bool Lib_ui_3ds_get_file_size(const char* path, uint32_t* size)
@@ -920,14 +963,25 @@ float box_width, float box_height)
 	y + ((box_height - height) / 2), width, height);
 }
 
+static void Lib_ui_3ds_draw_poster(const Lib_item* item, Lib_ui_3ds_thumb* thumb,
+float x, float y, float width, float height)
+{
+	Draw_image_data background = Draw_get_empty_image();
+	Draw_texture(&background, LIB_UI_3DS_COLOR_BACKGROUND, x, y, width, height);
+	if (thumb && thumb->loaded)
+		Lib_ui_3ds_draw_thumbnail(thumb, x + 1, y + 1, width - 2, height - 2);
+	else
+		Draw_align_c(Lib_ui_3ds_poster_label(item), x + 1, y + 1, UI_THEME_FONT_CAPTION,
+		LIB_UI_3DS_COLOR_ACCENT, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, width - 2, height - 2);
+}
+
 static void Lib_ui_3ds_draw_list_item(const Lib_index* index, size_t slot,
 uint32_t text_color, bool* may_decode)
 {
 	uint64_t id = 0;
 	const Lib_item* item = NULL;
 	Lib_ui_3ds_thumb* thumb = NULL;
-	char title[192] = { 0, };
-	char tags[128] = { 0, };
+	char meta[96] = { 0, };
 	float y = LIB_UI_3DS_LIST_ROW_Y + (slot * LIB_UI_3DS_LIST_ROW_HEIGHT);
 	uint32_t row_color = text_color;
 
@@ -936,22 +990,24 @@ uint32_t text_color, bool* may_decode)
 	item = Lib_index_find_id_const(index, id);
 	if (!item)
 		return;
-	if (library_ui.offset + slot == library_ui.cursor)
 	{
 		Draw_image_data background = Draw_get_empty_image();
-		Draw_texture(&background, DEF_DRAW_CYAN, LIB_UI_3DS_LIST_ROW_X, y,
-		LIB_UI_3DS_LIST_ROW_WIDTH, LIB_UI_3DS_LIST_ROW_HEIGHT - 2);
-		row_color = DEF_DRAW_BLACK;
+		bool selected = (bool)(library_ui.offset + slot == library_ui.cursor);
+		Draw_texture(&background, selected ? LIB_UI_3DS_COLOR_SURFACE_ALT
+		: ((slot & 1) ? LIB_UI_3DS_COLOR_SURFACE : LIB_UI_3DS_COLOR_SURFACE_ALT),
+		LIB_UI_3DS_LIST_ROW_X, y, LIB_UI_3DS_LIST_ROW_WIDTH, LIB_UI_3DS_LIST_ROW_HEIGHT - 1);
+		if (selected)
+			Draw_texture(&background, LIB_UI_3DS_COLOR_ACCENT, LIB_UI_3DS_LIST_ROW_X,
+			y, LIB_UI_3DS_RAIL_WIDTH, LIB_UI_3DS_LIST_ROW_HEIGHT - 1);
 	}
 	thumb = Lib_ui_3ds_get_thumbnail(item, may_decode);
-	Lib_ui_3ds_draw_thumbnail(thumb, LIB_UI_3DS_LIST_ROW_X + 2, y + 1, 28, 18);
-	snprintf(title, sizeof(title), "%s%s", (item->flags & LIB_ITEM_FLAG_FAVORITE) ? "* " : "",
-	Lib_item_get_title(item));
-	Lib_ui_3ds_format_tags(item, tags, sizeof(tags));
-	Draw_with_crop_c(title, LIB_UI_3DS_LIST_ROW_X + 34, y + 1,
-	10, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_LIST_ROW_WIDTH - 38, 10);
-	Draw_with_crop_c(tags, LIB_UI_3DS_LIST_ROW_X + 34, y + 12,
-	7, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_LIST_ROW_WIDTH - 38, 8);
+	Lib_ui_3ds_draw_poster(item, thumb, LIB_UI_3DS_LIST_ROW_X + 5, y + 1, 40, 26);
+	Draw_with_crop_c(Lib_item_get_title(item), LIB_UI_3DS_LIST_ROW_X + 52, y + 1,
+	UI_THEME_FONT_BODY, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_LIST_ROW_WIDTH - 56, 15);
+	Lib_ui_3ds_format_meta(item, meta, sizeof(meta));
+	Draw_with_crop_c(meta, LIB_UI_3DS_LIST_ROW_X + 52, y + 16,
+	UI_THEME_FONT_CAPTION, LIB_UI_3DS_COLOR_SECONDARY,
+	DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_LIST_ROW_WIDTH - 56, 11);
 }
 
 static void Lib_ui_3ds_draw_grid_item(const Lib_index* index, size_t slot,
@@ -960,7 +1016,7 @@ uint32_t text_color, bool* may_decode)
 	uint64_t id = 0;
 	const Lib_item* item = NULL;
 	Lib_ui_3ds_thumb* thumb = NULL;
-	char tags[128] = { 0, };
+	char meta[96] = { 0, };
 	size_t column = slot % LIB_UI_3DS_GRID_COLUMNS;
 	size_t row = slot / LIB_UI_3DS_GRID_COLUMNS;
 	float x = LIB_UI_3DS_GRID_X + (column * LIB_UI_3DS_GRID_CELL_WIDTH);
@@ -972,20 +1028,28 @@ uint32_t text_color, bool* may_decode)
 	item = Lib_index_find_id_const(index, id);
 	if (!item)
 		return;
-	if (library_ui.offset + slot == library_ui.cursor)
 	{
 		Draw_image_data background = Draw_get_empty_image();
-		Draw_texture(&background, DEF_DRAW_CYAN, x, y,
-		LIB_UI_3DS_GRID_CELL_WIDTH - 3, LIB_UI_3DS_GRID_CELL_HEIGHT - 2);
-		row_color = DEF_DRAW_BLACK;
+		bool selected = (bool)(library_ui.offset + slot == library_ui.cursor);
+		Draw_texture(&background, selected ? LIB_UI_3DS_COLOR_SURFACE_ALT : LIB_UI_3DS_COLOR_SURFACE,
+		x, y, LIB_UI_3DS_GRID_CELL_WIDTH - 3, LIB_UI_3DS_GRID_CELL_HEIGHT - 2);
+		if (selected)
+			Draw_texture(&background, LIB_UI_3DS_COLOR_ACCENT, x, y,
+			LIB_UI_3DS_RAIL_WIDTH, LIB_UI_3DS_GRID_CELL_HEIGHT - 2);
 	}
 	thumb = Lib_ui_3ds_get_thumbnail(item, may_decode);
-	Lib_ui_3ds_draw_thumbnail(thumb, x + 2, y + 3, 56, 36);
-	Draw_with_crop_c(Lib_item_get_title(item), x + 61, y + 3,
-	9, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_GRID_CELL_WIDTH - 65, 20);
-	Lib_ui_3ds_format_tags(item, tags, sizeof(tags));
-	Draw_with_crop_c(tags, x + 61, y + 25,
-	7, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_GRID_CELL_WIDTH - 65, 16);
+	Lib_ui_3ds_draw_poster(item, thumb, x + 6, y + 5, 54, 70);
+	Draw_with_crop_c(Lib_item_get_title(item), x + 66, y + 7,
+	UI_THEME_FONT_BODY, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
+	LIB_UI_3DS_GRID_CELL_WIDTH - 71, 30);
+	Lib_ui_3ds_format_meta(item, meta, sizeof(meta));
+	Draw_with_crop_c(meta, x + 66, y + 42,
+	UI_THEME_FONT_CAPTION, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
+	LIB_UI_3DS_GRID_CELL_WIDTH - 71, 24);
+	if (item->flags & LIB_ITEM_FLAG_FAVORITE)
+		Draw_with_crop_c(Lib_ui_3ds_text("FAVORITE", "FAVORITO"), x + 66, y + 67,
+		UI_THEME_FONT_CAPTION, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
+		LIB_UI_3DS_GRID_CELL_WIDTH - 71, 12);
 }
 
 static void Lib_ui_3ds_draw_button(const char* label, size_t slot, size_t count,
@@ -994,11 +1058,15 @@ float y, uint32_t text_color, bool selected)
 	Draw_image_data background = Draw_get_empty_image();
 	float width = 320.0f / (float)count;
 	float x = width * (float)slot;
-	Draw_texture(&background, selected ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_MUTED,
+		Draw_texture(&background, selected ? LIB_UI_3DS_COLOR_SURFACE_ALT : LIB_UI_3DS_COLOR_SURFACE,
 	x + 1, y, width - 2, LIB_UI_3DS_BUTTON_ROW_HEIGHT);
-	Draw_align_c(label, x + 2, y, UI_THEME_FONT_CAPTION,
-	selected ? UI_THEME_COLOR_SELECTED_TEXT : text_color, DRAW_X_ALIGN_CENTER,
+	Draw_align_c(label, x + 2, y, UI_THEME_FONT_BUTTON,
+	text_color, DRAW_X_ALIGN_CENTER,
 	DRAW_Y_ALIGN_CENTER, width - 4, LIB_UI_3DS_BUTTON_ROW_HEIGHT);
+	if (selected)
+		Draw_texture(&background, LIB_UI_3DS_COLOR_ACCENT, x + 1,
+		y + LIB_UI_3DS_BUTTON_ROW_HEIGHT - LIB_UI_3DS_RAIL_WIDTH,
+		width - 2, LIB_UI_3DS_RAIL_WIDTH);
 }
 
 static void Lib_ui_3ds_draw_queue(const Lib_index* index, uint32_t text_color,
@@ -1021,7 +1089,7 @@ bool* may_decode_thumbnail)
 	{
 		const Lib_item* item = NULL;
 		Lib_ui_3ds_thumb* thumb = NULL;
-		char tags[128] = { 0, };
+		char meta[96] = { 0, };
 		float y = LIB_UI_3DS_LIST_ROW_Y + (row * LIB_UI_3DS_LIST_ROW_HEIGHT);
 		size_t position = library_queue_offset + row;
 		uint32_t row_color = text_color;
@@ -1030,22 +1098,25 @@ bool* may_decode_thumbnail)
 		item = Lib_index_find_id_const(index, id);
 		if (!item)
 			continue;
-		if (position == library_queue_cursor)
 		{
 			Draw_image_data background = Draw_get_empty_image();
-			Draw_texture(&background, UI_THEME_COLOR_ACCENT, LIB_UI_3DS_LIST_ROW_X, y,
-			LIB_UI_3DS_LIST_ROW_WIDTH, LIB_UI_3DS_LIST_ROW_HEIGHT - 2);
-			row_color = UI_THEME_COLOR_SELECTED_TEXT;
+			bool selected = (position == library_queue_cursor);
+			Draw_texture(&background, selected ? LIB_UI_3DS_COLOR_SURFACE_ALT
+			: ((row & 1) ? LIB_UI_3DS_COLOR_SURFACE : LIB_UI_3DS_COLOR_SURFACE_ALT),
+			LIB_UI_3DS_LIST_ROW_X, y, LIB_UI_3DS_LIST_ROW_WIDTH, LIB_UI_3DS_LIST_ROW_HEIGHT - 1);
+			if (selected)
+				Draw_texture(&background, LIB_UI_3DS_COLOR_ACCENT, LIB_UI_3DS_LIST_ROW_X,
+				y, LIB_UI_3DS_RAIL_WIDTH, LIB_UI_3DS_LIST_ROW_HEIGHT - 1);
 		}
 		thumb = Lib_ui_3ds_get_thumbnail(item, may_decode_thumbnail);
-		Lib_ui_3ds_draw_thumbnail(thumb, LIB_UI_3DS_LIST_ROW_X + 2, y + 2, 30, 20);
-		Draw_with_crop_c(Lib_item_get_title(item), LIB_UI_3DS_LIST_ROW_X + 36, y + 2,
+		Lib_ui_3ds_draw_poster(item, thumb, LIB_UI_3DS_LIST_ROW_X + 5, y + 1, 40, 26);
+		Draw_with_crop_c(Lib_item_get_title(item), LIB_UI_3DS_LIST_ROW_X + 52, y + 1,
 		UI_THEME_FONT_BODY, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
-		LIB_UI_3DS_LIST_ROW_WIDTH - 40, 10);
-		Lib_ui_3ds_format_tags(item, tags, sizeof(tags));
-		Draw_with_crop_c(tags, LIB_UI_3DS_LIST_ROW_X + 36, y + 13,
-		UI_THEME_FONT_CAPTION, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
-		LIB_UI_3DS_LIST_ROW_WIDTH - 40, 9);
+		LIB_UI_3DS_LIST_ROW_WIDTH - 56, 15);
+		Lib_ui_3ds_format_meta(item, meta, sizeof(meta));
+		Draw_with_crop_c(meta, LIB_UI_3DS_LIST_ROW_X + 52, y + 16,
+		UI_THEME_FONT_CAPTION, LIB_UI_3DS_COLOR_SECONDARY,
+		DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_LIST_ROW_WIDTH - 56, 11);
 	}
 	if (count == 0)
 		Draw_align_c(Lib_ui_3ds_text("Queue is empty", "Fila vazia"), 4, 100,
@@ -1060,7 +1131,7 @@ bool* may_decode_thumbnail)
 	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("PLAY", "TOCAR"), 3, 4,
 	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, false);
 
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("STOP", "PARAR"), 0, 4,
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("ONCE", "UMA VEZ"), 0, 4,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, mode == LIB_QUEUE_MODE_NO_REPEAT);
 	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("REPEAT", "REPETIR"), 1, 4,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, mode == LIB_QUEUE_MODE_REPEAT);
@@ -1074,27 +1145,32 @@ void Lib_ui_3ds_draw(const Lib_index* index, uint32_t text_color,
 uint32_t background_color)
 {
 	Draw_image_data background = Draw_get_empty_image();
-	char header[192] = { 0, };
+	char header[160] = { 0, };
+	char status[48] = { 0, };
+	library_ui_dark_theme = (bool)(background_color == DEF_DRAW_BLACK
+	|| background_color == UI_THEME_COLOR_BACKGROUND);
+	text_color = LIB_UI_3DS_COLOR_TEXT;
 	bool may_decode_thumbnail = true;
 
 	if (!library_ui_open || !index)
 		return;
 
 	Lib_ui_3ds_rebuild(index);
-	Draw_texture(&background, background_color, 0, 0, 320, 240);
+	Draw_texture(&background, LIB_UI_3DS_COLOR_BACKGROUND, 0, 0, 320, 240);
 	if (library_queue_view)
 	{
 		Lib_ui_3ds_draw_queue(index, text_color, &may_decode_thumbnail);
 		return;
 	}
-	snprintf(header, sizeof(header), "%s %s (%zu) %s SORT:%s%s%s",
-	Lib_ui_3ds_text("LIBRARY", "BIBLIOTECA"),
-	Lib_ui_3ds_tab_name(library_ui.tab), library_ui.count,
-	library_ui.grid_mode ? Lib_ui_3ds_text("GRID", "GRADE") : Lib_ui_3ds_text("LIST", "LISTA"),
-	Lib_ui_3ds_sort_name(library_ui.sort.key), library_ui.search[0] ? " Q:" : "",
-	library_ui.search);
-	Draw_with_crop_c(header, 4, 4, UI_THEME_FONT_BODY, text_color, DRAW_X_ALIGN_LEFT,
-	DRAW_Y_ALIGN_TOP, 312, 16);
+	snprintf(header, sizeof(header), "%s%s%s", Lib_ui_3ds_screen_title(),
+	library_ui.search[0] ? "  ·  " : "", library_ui.search);
+	snprintf(status, sizeof(status), "%zu  |  %s", library_ui.count,
+	Lib_ui_3ds_sort_name(library_ui.sort.key));
+	Draw_with_crop_c(header, 4, 3, UI_THEME_FONT_HEADING, text_color, DRAW_X_ALIGN_LEFT,
+	DRAW_Y_ALIGN_TOP, 220, 18);
+	Draw_with_crop_c(status, 224, 5, UI_THEME_FONT_CAPTION, LIB_UI_3DS_COLOR_SECONDARY, DRAW_X_ALIGN_RIGHT,
+	DRAW_Y_ALIGN_TOP, 92, 14);
+	Draw_texture(&background, LIB_UI_3DS_COLOR_RAIL_OFF, 4, 20, 312, 1);
 
 	for (size_t slot = 0; slot < (library_ui.grid_mode
 	? LIB_UI_3DS_GRID_VISIBLE_ITEMS : LIB_UI_3DS_ROWS); slot++)
@@ -1110,25 +1186,27 @@ uint32_t background_color)
 		4, 104, UI_THEME_FONT_BODY, text_color, DRAW_X_ALIGN_CENTER,
 		DRAW_Y_ALIGN_CENTER, 312, 24);
 
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("CONT", "SEGUIR"), 0, 5,
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("CONT.", "CONT."), 0, 5,
 	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.tab == LIB_VIEW_TAB_CONTINUE);
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("RECENT", "RECENTES"), 1, 5,
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("REC.", "REC."), 1, 5,
 	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.tab == LIB_VIEW_TAB_RECENT);
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("ALL", "TODOS"), 2, 5,
-	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.tab == LIB_VIEW_TAB_ALL);
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("FAV", "FAVORITOS"), 3, 5,
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("MOVIES", "FILMES"), 2, 5,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.filter == LIB_UI_FILTER_MOVIES);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("SERIES", "SÉRIES"), 3, 5,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.filter == LIB_UI_FILTER_SERIES);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("FAV", "FAV."), 4, 5,
 	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.tab == LIB_VIEW_TAB_FAVORITES);
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("QUEUE", "FILA"), 4, 5,
-	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, false);
 
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("ADD", "ADIC."), 0, 5,
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("QUEUE", "FILA"), 0, 6,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("PLAY", "TOCAR"), 1, 5,
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("ADD", "ADIC."), 1, 6,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("SEARCH", "BUSCA"), 2, 5,
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("PLAY", "VER"), 2, 6,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("GRID", "GRADE"), 3, 5,
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("SEARCH", "BUSCA"), 3, 6,
+	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("GRID", "GRADE"), 4, 6,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, library_ui.grid_mode);
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("CLOSE", "FECHAR"), 4, 5,
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("CLOSE", "FECHAR"), 5, 6,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
 }

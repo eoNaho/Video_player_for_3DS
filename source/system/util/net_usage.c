@@ -10,6 +10,8 @@
 #include "3ds.h"
 
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
+#include "system/sem.h"
 #include "system/util/err_types.h"
 #include "system/util/log.h"
 #include "system/util/str.h"
@@ -21,11 +23,11 @@
 #define STACK_SIZE				(uint32_t)(2048)	//Stack size for worker threads.
 
 #define NET_USAGE_X				(float)(300)		//X offset for NET usage info in px.
-#define NET_USAGE_Y				(float)(90)			//Y offset for NET usage info in px.
+#define NET_USAGE_Y				(float)(102)			//Y offset for NET usage info in px.
 #define NET_USAGE_WIDTH			(float)(100)		//Element width for NET usage info in px.
-#define NET_USAGE_HEIGHT		(float)(30)			//Element height for NET usage info in px.
+#define NET_USAGE_HEIGHT		(float)(36)			//Element height for NET usage info in px.
 
-#define FONT_SIZE_NET_USAGE		(float)(11.00)		//Font size for NET usage info in px.
+#define FONT_SIZE_NET_USAGE		(float)(UI_THEME_FONT_CAPTION)		//Font size for NET usage info in px.
 
 //Typedefs.
 //N/A.
@@ -154,11 +156,13 @@ void Util_net_usage_draw(void)
 	uint32_t char_length = 0;
 	char msg_cache[64] = { 0, };
 	Draw_image_data background = Draw_get_empty_image();
+	Sem_config config = { 0, };
 	Str_data download_size_string = { 0, };
 	Str_data upload_size_string = { 0, };
 
 	if(!util_net_usage_init)
 		return;
+	Sem_get_config(&config);
 
 	Util_format_size(Util_net_usage_get_net_download_speed(), &download_size_string);
 	Util_format_size(Util_net_usage_get_net_upload_speed(), &upload_size_string);
@@ -171,8 +175,9 @@ void Util_net_usage_draw(void)
 	Util_str_free(&download_size_string);
 	Util_str_free(&upload_size_string);
 
-	Draw_with_scale_c(msg_cache, NET_USAGE_X, NET_USAGE_Y, FONT_SIZE_NET_USAGE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT, DEF_DRAW_BLACK,
-	DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, NET_USAGE_WIDTH, NET_USAGE_HEIGHT, DRAW_BACKGROUND_UNDER_TEXT, &background, DEF_DRAW_WEAK_WHITE);
+	Draw_with_scale_c(msg_cache, NET_USAGE_X, NET_USAGE_Y, FONT_SIZE_NET_USAGE, DEF_DRAW_NORMAL_SCALE_AND_COMPACT,
+	UI_THEME_COLOR_MODE(config.is_night, TEXT), DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, NET_USAGE_WIDTH, NET_USAGE_HEIGHT,
+	DRAW_BACKGROUND_UNDER_TEXT, &background, UI_THEME_COLOR_MODE(config.is_night, SURFACE));
 }
 
 ssize_t __wrap_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen)

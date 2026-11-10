@@ -7,8 +7,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
+#include "system/sem.h"
 #include "system/util/err_types.h"
 #include "system/util/file.h"
 #include "system/util/hid.h"
@@ -24,19 +27,19 @@
 #define SORT_TYPE_NUMBER					(uint8_t)(2)	//0-9.
 #define SORT_TYPE_ALPHABET					(uint8_t)(3)	//a-z or A-Z.
 
-#define NUM_OF_DISPLAYED_ITEMS				(uint8_t)(16)	//Number of displayed files on the screen.
+#define NUM_OF_DISPLAYED_ITEMS				(uint8_t)(7)	//Number of displayed files on the screen.
 
-#define BOX_X								(double)(10)	//Box X offset for explorer screen in px.
-#define BOX_Y								(double)(20)	//Box Y offset for explorer screen in px.
-#define BOX_WIDTH							(double)(300)	//Box width for explorer screen in px.
-#define BOX_HEIGHT							(double)(190)	//Box height for explorer screen in px.
+#define BOX_X								(double)(8)	//Box X offset for explorer screen in px.
+#define BOX_Y								(double)(4)	//Box Y offset for explorer screen in px.
+#define BOX_WIDTH							(double)(304)	//Box width for explorer screen in px.
+#define BOX_HEIGHT							(double)(232)	//Box height for explorer screen in px.
 
-#define ITEM_SPACE_X						(double)(2.5)	//Element spacing for explorer screen (for X direction) in px.
+#define ITEM_SPACE_X						(double)(6)	//Element spacing for explorer screen (for X direction) in px.
 #define ITEM_SPACE_Y						(double)(0)		//Element spacing for explorer screen (for Y direction) in px.
-#define ITEM_WIDTH							(double)(295)	//Element width for explorer screen in px.
-#define ITEM_HEIGHT							(double)(160.0 / NUM_OF_DISPLAYED_ITEMS)	//Element height for explorer screen in px.
+#define ITEM_WIDTH							(double)(292)	//Element width for explorer screen in px.
+#define ITEM_HEIGHT							(double)(24)	//Element height for explorer screen in px.
 
-#define CONTROL_SPACE_Y						(double)(5)		//Control element spacing for explorer screen (for Y direction) in px.
+#define CONTROL_SPACE_Y						(double)(4)		//Control element spacing for explorer screen (for Y direction) in px.
 
 //Close.
 #define HID_NOT_INITED_CLOSE_CFM(k)			(bool)(DEF_HID_PR_EM((k).a, 1) || DEF_HID_HD((k).a))
@@ -69,9 +72,9 @@
 || DEF_HID_PHY_PR((k).c_left) || DEF_HID_PHY_HE((k).d_left) || DEF_HID_PHY_HE((k).c_left) || is_new_range[0] || is_new_range[1])
 
 #define FONT_SIZE_ERROR						(float)(13.50)	//Font size for API error in px.
-#define FONT_SIZE_CONTENT					(float)(ITEM_HEIGHT * 1.25)	//Font size for content in px.
-#define FONT_SIZE_CONTROL					(float)(12.75)	//Font size for UI controls in px.
-#define FONT_SIZE_CURRENT_DIR				(float)(13.50)	//Font size for current directory in px.
+#define FONT_SIZE_CONTENT					(float)(14)	//Font size for content in px.
+#define FONT_SIZE_CONTROL					(float)(12.5)	//Font size for UI controls in px.
+#define FONT_SIZE_CURRENT_DIR				(float)(14)	//Font size for current directory in px.
 
 //Typedefs.
 typedef struct
@@ -370,21 +373,40 @@ void Util_expl_set_show_flag(bool flag)
 void Util_expl_draw(void)
 {
 	Draw_image_data background = Draw_get_empty_image();
-	uint32_t color = DEF_DRAW_BLACK;
+	Sem_config config = { 0, };
+	uint32_t color = 0;
+	uint32_t surface = 0;
+	uint32_t surface_alt = 0;
+	uint32_t accent = 0;
+	uint32_t background_color = 0;
 	double draw_x = 0;
 	double draw_y = 0;
+	bool portuguese = false;
+
+	Sem_get_config(&config);
+	color = UI_THEME_COLOR_MODE(config.is_night, TEXT);
+	surface = UI_THEME_COLOR_MODE(config.is_night, SURFACE);
+	surface_alt = UI_THEME_COLOR_MODE(config.is_night, SURFACE_ALT);
+	accent = UI_THEME_COLOR_MODE(config.is_night, ACCENT);
+	background_color = UI_THEME_COLOR_MODE(config.is_night, BACKGROUND);
+	portuguese = (bool)(strncmp(config.lang, "pt", 2) == 0);
 
 	if(!util_expl_init)
 	{
-		Draw_with_background_c("Explorer API is not initialized.\nPress A to close.", BOX_X, BOX_Y, FONT_SIZE_ERROR, DEF_DRAW_RED,
-		DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, BOX_WIDTH, BOX_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &background, DEF_DRAW_CYAN);
+		Draw_with_background_c(portuguese ? "O explorador não foi iniciado.\nPressione A para fechar."
+		: "Explorer API is not initialized.\nPress A to close.", BOX_X, BOX_Y, FONT_SIZE_ERROR, color,
+		DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, BOX_WIDTH, BOX_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &background, surface);
 		return;
 	}
 
-	Draw_texture(&background, DEF_DRAW_CYAN, BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT);
+	Draw_texture(&background, background_color, BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT);
+	Draw_with_crop(&util_expl_current_dir, BOX_X + ITEM_SPACE_X, BOX_Y + 3,
+	FONT_SIZE_CURRENT_DIR, UI_THEME_COLOR_MODE(config.is_night, SECONDARY_TEXT), DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
+	ITEM_WIDTH, 17);
+	Draw_texture(&background, UI_THEME_COLOR_MODE(config.is_night, RAIL_OFF), BOX_X + ITEM_SPACE_X, BOX_Y + 22, ITEM_WIDTH, 1);
 
 	draw_x = (BOX_X + ITEM_SPACE_X);
-	draw_y = (BOX_Y + ITEM_SPACE_Y);
+	draw_y = (BOX_Y + 25 + ITEM_SPACE_Y);
 
 	for (uint8_t i = 0; i < NUM_OF_DISPLAYED_ITEMS; i++)
 	{
@@ -417,21 +439,21 @@ void Util_expl_draw(void)
 		}
 		Util_str_free(&type);
 
-		text_color = (i == util_expl_active_index ? DEF_DRAW_RED : color);
-		texture_color = (util_expl_file_button[i].selected ? DEF_DRAW_LIME : DEF_DRAW_CYAN);
+		text_color = (util_expl_file_button[i].selected ? UI_THEME_COLOR_MODE(config.is_night, SELECTED_TEXT) : color);
+		texture_color = (util_expl_file_button[i].selected ? accent : ((i & 1) ? surface : surface_alt));
 
 		Draw_with_background(&message, draw_x, draw_y, FONT_SIZE_CONTENT, text_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER,
 		ITEM_WIDTH, ITEM_HEIGHT, DRAW_BACKGROUND_ENTIRE_BOX, &util_expl_file_button[i], texture_color);
+		if (i == util_expl_active_index)
+			Draw_texture(&background, accent, draw_x, draw_y, 3, ITEM_HEIGHT);
 
 		draw_y += (ITEM_HEIGHT + ITEM_SPACE_Y);
 		Util_str_free(&message);
 	}
 
 	draw_y += CONTROL_SPACE_Y;
-	Draw_c("A: OK, B: Back, X: Close, ↑↓→←: Move", draw_x, draw_y, FONT_SIZE_CONTROL, DEF_DRAW_BLACK);
-
-	draw_y += (ITEM_HEIGHT + ITEM_SPACE_Y);
-	Draw(&util_expl_current_dir, draw_x, draw_y, FONT_SIZE_CURRENT_DIR, DEF_DRAW_BLACK);
+	Draw_c(portuguese ? "A Abrir · B Voltar · X Fechar" : "A Open · B Back · X Close",
+	draw_x, draw_y, FONT_SIZE_CONTROL, UI_THEME_COLOR_MODE(config.is_night, SECONDARY_TEXT));
 }
 
 void Util_expl_main(const Hid_info* key, double scroll_speed)
