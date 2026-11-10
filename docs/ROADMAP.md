@@ -26,16 +26,26 @@ segundo plano (scan, probe, miniaturas) cede CPU ao player.
   + testes no PC), com adaptadores 3DS de varredura (`lib_scan_3ds`), armazenamento
    (`lib_store_3ds`) e migração de `saved_pos` (`lib_migrate_3ds`). Probe, integração
    com `video_player.c`, retomada persistente, abas e tela 3DS leve já estão implementados;
-   falta validar o alvo no console.
+   falta validar o alvo no Old 3DS e no New 3DS.
 - **Fase 2 — Metadados e miniaturas:** probe, etiquetas de codec/resolução/tracks,
   miniaturas sidecar preguiçosas, grade 2×4, busca por título e atalhos de ordenação
-  estão implementados no código. Geração das sidecars no PC via FTP e validação no
-  Old 3DS continuam pendentes.
-- **Fase 3 — Player e configurações:** tokens de design, alvos de toque ≥ 24 px,
-  configurações por categoria, pt-BR.
-- **Fase 4 — Otimização guiada por medição:** só o que o baseline justificar.
-- **Fase 5 — Extras:** busca básica e favoritos estão disponíveis na biblioteca;
-  próximo episódio e perfil automático completo continuam pendentes.
+  estão implementados no código. Ainda falta documentar/fornecer o fluxo de geração
+  das sidecars no PC e transferi-las por FTP, além da validação no console.
+- **Fase 3 — Player e configurações:** as telas de configurações existentes já têm
+  páginas por categoria. Tokens visuais compartilhados, botões da biblioteca com
+  áreas de toque de pelo menos 24 px e catálogos pt-BR para configurações, player,
+  menu e FTP estão implementados.
+- **Fase 4 — Otimização guiada por medição:** há uma primeira redução de trabalho
+  ocioso: a biblioteca dorme por 250 ms entre tarefas, telas pausadas só redesenham
+  quando há mudanças e o perfil de energia oferece Auto/Economia/Desempenho, com
+  limite menor de CPU em Economia e em bateria baixa no modo Auto. O Old 3DS ainda
+  precisa de medições de consumo, fluidez, RAM e tempos em [`BASELINE.md`](BASELINE.md);
+  não há ganho de bateria quantificado.
+- **Fase 5 — Extras:** a fila visível aceita itens da biblioteca e permite remover,
+  limpar e escolher modo de reprodução. A seleção de episódios cria uma sequência
+  automática por série, temporada e episódio e avança ao próximo item ao terminar;
+  filas alteradas manualmente mantêm a ordem escolhida. Busca e favoritos também
+  estão disponíveis.
 
 ## Integração
 

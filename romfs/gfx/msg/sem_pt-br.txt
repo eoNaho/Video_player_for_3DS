@@ -1,0 +1,93 @@
+<0>Atualizações</0>
+<1>Idiomas</1>
+<2>LCD</2>
+<3>Controles</3>
+<4>Fonte</4>
+<5>Rede sem fio</5>
+<6>Configurações avançadas</6>
+<7>Bateria</7>
+<8></8>
+<9>English</9>
+<10>日本語</10>
+<11>Modo noturno</11>
+<12>LIGADO</12>
+<13>DESLIGADO</13>
+<14>Flash</14>
+<15>Brilho da tela: </15>
+<16>Tempo para apagar as telas: </16>
+<17>s</17>
+<18>Velocidade de rolagem: </18>
+<19>JPN</19>
+<20>CHN</20>
+<21>KOR</21>
+<22>TWN</22>
+<23>Carregar todas</23>
+<24>Descarregar todas</24>
+<25>Permitir envio de dados do app</25>
+<26>PERMITIR</26>
+<27>NEGAR</27>
+<28>Modo de depuração</28>
+<29>Modo econômico</29>
+<30>Voltar</30>
+<31>Verificando...</31>
+<32>Falha na verificação.</32>
+<33>Atualizado.</33>
+<34>Nova versão disponível.</34>
+<35></35>
+<36></36>
+<37>.3dsx</37>
+<38>.cia</38>
+<39>O arquivo será salvo em </39>
+<40>Baixando...</40>
+<41>Instalando...</41>
+<42>Sucesso!
+Reinicie o app para aplicar as atualizações.</42>
+<43>Falhou</43>
+<44></44>
+<45>Baixar e instalar (X)</45>
+<46>Fechar app</46>
+<47>Wi-Fi</47>
+<48>Conectado a: </48>
+<49>Gravação de tela</49>
+<50>Gravar as duas telas</50>
+<51>Gravar tela superior</51>
+<52>Gravar tela inferior</52>
+<53>Parar gravação</53>
+<54>Modo de tela (superior)</54>
+<55>Para gravar, desative o modo
+"800px (auto)" em Configurações > LCD > Modo de tela.</55>
+<56>800px</56>
+<57>3D</57>
+<58>Nada</58>
+<59>Húngaro</59>
+<60>Chinês simplificado</60>
+<61>Italiano</61>
+<62>Usar modelo simulado (reinicie para aplicar; algumas funções podem falhar)</62>
+<63>Espanhol</63>
+<64>Romeno</64>
+<65>Polonês</65>
+<66>Monitor de CPU (pode ser impreciso)</66>
+<67>Salvar logs</67>
+<68>Idiomas de Ryukyu</68>
+<69>Automático</69>
+<70>Tempo até suspender: </70>
+<71>Alemão</71>
+<72>Monitor de GPU (pode ser impreciso)</72>
+<73>Monitor de rede (pode ser impreciso)</73>
+<74>Monitor de armazenamento (pode ser impreciso)</74>
+<75>Monitor de RAM (pode ser impreciso)</75>
+<76>LIGADO (OLD 3DS)</76>
+<77>LIGADO (OLD 3DS XL)</77>
+<78>LIGADO (OLD 2DS)</78>
+<79>LIGADO (NEW 3DS)</79>
+<80>LIGADO (NEW 3DS XL)</80>
+<81>LIGADO (NEW 2DS XL)</81>
+<82>Nível da bateria: </82>
+<83>Tensão da bateria: </83>
+<84>Temperatura da bateria: </84>
+<85>Tempo restante (carregando): </85>
+<86>Tempo restante (bateria): </86>
+<87>Carga completa</87>
+<88>Calculando tempo restante...</88>
+<89>Licença</89>
+<90>Português (Brasil)</90>

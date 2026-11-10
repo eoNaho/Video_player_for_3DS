@@ -91,3 +91,4 @@ turn off the '800px (auto) mode'
 <87>Fully charged</87>
 <88>Calculating remaining time...</88>
 <89>License</89>
+<90>Português (Brasil)</90>

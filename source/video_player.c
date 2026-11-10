@@ -11,6 +11,7 @@
 #include "system/menu.h"
 #include "system/sem.h"
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
 #include "system/util/converter.h"
 #include "system/util/cpu_usage.h"
 #include "system/util/decoder.h"
@@ -34,6 +35,8 @@
 #include "system/util/watch.h"
 
 #include "library/lib_library_3ds.h"
+#include "library/lib_name.h"
+#include "library/lib_queue.h"
 #include "library/lib_ui_3ds.h"
 
 //Defines.
@@ -73,7 +76,9 @@
 #define SETTINGS_ELEMENTS_V4						(uint8_t)(16)							//Settings file for v1.5.0.
 #define SETTINGS_ELEMENTS_V5						(uint8_t)(17)							//Settings file for v1.5.1, v1.5.2, v1.5.3 and v1.6.0.
 #define SETTINGS_ELEMENTS_V6						(uint8_t)(18)							//Settings file for v1.6.1, v1.7.0 and v1.8.0.
-#define SETTINGS_ELEMENTS_NEWEST					(uint8_t)(SETTINGS_ELEMENTS_V6)			//Number of elements for the newest settings file.
+#define SETTINGS_ELEMENTS_V7						(uint8_t)(19)							//Adds the persisted CPU power profile.
+#define SETTINGS_ELEMENTS_NEWEST					(uint8_t)(SETTINGS_ELEMENTS_V7)		//Number of elements for the newest settings file.
+#define VID_POWER_LOW_BATTERY_PERCENT			(double)(25.0)
 
 #define DEBUG_GRAPH_ELEMENTS						(uint16_t)(320)							//Number of debug graph elements.
 #define DEBUG_GRAPH_AVG_SAMPLES						(uint16_t)(90)							//Number of samples to calculate average.
@@ -269,6 +274,10 @@
 #define HID_SE0_PLAYBACK_MODE_SEL(k)				(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(vid_player.playback_mode_button, (k)))
 #define HID_SE0_PLAYBACK_MODE_CFM(k)				(bool)((DEF_HID_PR_EM((k).touch, 1) || DEF_HID_HD((k).touch)) && DEF_HID_INIT_LAST_IN(vid_player.playback_mode_button, (k)))
 #define HID_SE0_PLAYBACK_MODE_DESEL(k)				(bool)(DEF_HID_PHY_NP((k).touch))
+//Settings 0: Cycle CPU power profile.
+#define HID_SE0_POWER_PROFILE_SEL(k)				(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(vid_player.power_profile_button, (k)))
+#define HID_SE0_POWER_PROFILE_CFM(k)				(bool)((DEF_HID_PR_EM((k).touch, 1) || DEF_HID_HD((k).touch)) && DEF_HID_INIT_LAST_IN(vid_player.power_profile_button, (k)))
+#define HID_SE0_POWER_PROFILE_DESEL(k)				(bool)(DEF_HID_PHY_NP((k).touch))
 //Settings 0: Change restart playback threshold.
 #define HID_SE0_RESUME_PLAYBACK_THRESHOLD_SEL(k)	(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(vid_player.restart_playback_threshold_bar, (k)))
 #define HID_SE0_RESUME_PLAYBACK_THRESHOLD_CFM(k)	(bool)(HID_SE0_RESUME_PLAYBACK_THRESHOLD_SEL((k)) || (DEF_HID_PHY_HE((k).touch) && vid_player.restart_playback_threshold_bar.selected))
@@ -491,6 +500,14 @@ typedef enum
 
 typedef enum
 {
+	VID_POWER_PROFILE_AUTO,
+	VID_POWER_PROFILE_ECO,
+	VID_POWER_PROFILE_PERFORMANCE,
+	VID_POWER_PROFILE_MAX,
+} Vid_power_profile;
+
+typedef enum
+{
 	MOVE_DISABLE,		//Move nothing.
 	MOVE_BOTH,			//Move both video and subtitle.
 	MOVE_VIDEO,			//Only move the video.
@@ -548,6 +565,7 @@ typedef struct
 	uint16_t restart_playback_threshold;			//Restart playback threshold after out of video buffer.
 	uint16_t volume;								//Software controlled volume level in %.
 	Vid_playback playback_mode;						//Playback mode.
+	Vid_power_profile power_profile;					//Auto/Eco/Performance CPU budget.
 	Vid_move move_content_mode;						//Move content mode.
 
 	//Settings (can NOT be changed while playing videos).
@@ -603,6 +621,11 @@ typedef struct
 	Vid_player_main_state state;					//Main state.
 	Vid_player_sub_state sub_state;					//Sub state.
 	Vid_file file;									//File info.
+
+	Lib_queue library_queue;
+	bool library_queue_active;
+	bool library_queue_auto_profile;
+	uint8_t applied_cpu_time_limit;
 
 	//Media.
 	bool is_eof;									//Whether EOF has been reached.
@@ -679,7 +702,7 @@ typedef struct
 	lower_resolution_button, decrement_num_of_threads_button, increment_num_of_threads_button, menu_button[MENU_MAX],
 	audio_track_ok_button, audio_track_button[DEF_DECODER_MAX_AUDIO_TRACKS], correct_aspect_ratio_button, move_content_button,
 	remember_video_pos_button, show_decode_graph_button, show_color_conversion_graph_button, show_packet_buffer_graph_button,
-	show_raw_video_buffer_graph_button, show_raw_audio_buffer_graph_button, scroll_bar, playback_mode_button, subtitle_track_ok_button,
+	show_raw_video_buffer_graph_button, show_raw_audio_buffer_graph_button, scroll_bar, playback_mode_button, power_profile_button, subtitle_track_ok_button,
 	subtitle_track_button[DEF_DECODER_MAX_SUBTITLE_TRACKS], select_subtitle_track_button, disable_audio_button,
 	disable_video_button, disable_subtitle_button, restart_playback_threshold_bar, seek_bar;
 
@@ -701,6 +724,7 @@ typedef struct
 	Thread exit_thread;								//Exit thread handle.
 
 	//Mutexes.
+	Sync_data library_queue_lock;
 	Sync_data texture_init_free_lock;				//Mutex for initializing and freeing texture buffers.
 	Sync_data delay_update_lock;					//Mutex for updating video delay information.
 } Vid_player;
@@ -715,6 +739,8 @@ static void Vid_increase_screen_brightness(void);
 static void Vid_decrease_screen_brightness(void);
 static void Vid_control_full_screen(void);
 static void Vid_update_sleep_policy(void);
+static void Vid_apply_cpu_budget(const Sem_state* supplied_state);
+static const char* Vid_power_profile_name(Vid_power_profile profile, bool portuguese);
 static void Vid_update_decoding_delay(double decoding_time, double* total_delay, Vid_eye eye_index);
 static void Vid_update_decoding_statistics(double decoding_time, bool is_key_frame);
 static void Vid_update_decoding_statistics_every_100ms(void);
@@ -741,6 +767,8 @@ static uint8_t Vid_get_default_num_of_threads(void);
 static uint32_t Vid_load_settings(void);
 static uint32_t Vid_save_settings(void);
 static void Vid_log_settings(void);
+static void Vid_sync_library_queue_mode(void);
+static void Vid_library_queue_changed(void);
 //Removed static from these functions because they are implementation for weak functions.
 void frame_worker_thread_start(const void* ptr);
 void frame_worker_thread_end(const void* ptr);
@@ -757,6 +785,8 @@ static void Vid_expl_callback(Str_data* file, Str_data* dir);
 static void Vid_expl_cancel_callback(void);
 static void Vid_library_play_callback(const Lib_item* item);
 static Lib_video_codec Vid_library_codec(const char* short_name);
+static bool Vid_library_build_episode_profile(const Lib_item* selected);
+static Vid_file* Vid_library_file_from_item(const Lib_item* item);
 
 //Variables.
 static Str_data vid_msg[MSG_MAX] = { 0, };
@@ -901,6 +931,8 @@ void Vid_hid(const Hid_info* key)
 					vid_player.remember_video_pos_button.selected = true;
 				if(HID_SE0_PLAYBACK_MODE_SEL(*key))
 					vid_player.playback_mode_button.selected = true;
+				if(HID_SE0_POWER_PROFILE_SEL(*key))
+					vid_player.power_profile_button.selected = true;
 				if(HID_SE0_RESUME_PLAYBACK_THRESHOLD_SEL(*key))
 					vid_player.restart_playback_threshold_bar.selected = true;
 
@@ -1152,7 +1184,8 @@ void Vid_hid(const Hid_info* key)
 				else if(HID_OPEN_EXPL_CFM(*key))
 				{
 					if (!Lib_library_is_initialized()
-					|| !Lib_ui_3ds_open(Lib_library_index()))
+					|| !Lib_ui_3ds_open(Lib_library_index(), &vid_player.library_queue,
+					&vid_player.library_queue_lock, vid_player.state != PLAYER_STATE_IDLE))
 					{
 						Util_expl_set_show_flag(true);
 						Util_expl_set_callback(Vid_expl_callback);
@@ -1245,6 +1278,13 @@ void Vid_hid(const Hid_info* key)
 							vid_player.playback_mode = PLAYBACK_NO_REPEAT;
 						else
 							vid_player.playback_mode = (Vid_playback)(vid_player.playback_mode + 1);
+						Vid_sync_library_queue_mode();
+					}
+					else if(HID_SE0_POWER_PROFILE_CFM(*key))
+					{
+						vid_player.power_profile = (Vid_power_profile)((vid_player.power_profile + 1) % VID_POWER_PROFILE_MAX);
+						Vid_apply_cpu_budget(NULL);
+						Draw_set_refresh_needed(true);
 					}
 					else if(HID_SE0_RESUME_PLAYBACK_THRESHOLD_CFM(*key))//Restart playback threshold button.
 					{
@@ -1607,6 +1647,8 @@ void Vid_hid(const Hid_info* key)
 		vid_player.remember_video_pos_button.selected = false;
 	if(HID_SE0_PLAYBACK_MODE_DESEL(*key) || vid_player.is_scroll_mode)
 		vid_player.playback_mode_button.selected = false;
+	if(HID_SE0_POWER_PROFILE_DESEL(*key) || vid_player.is_scroll_mode)
+		vid_player.power_profile_button.selected = false;
 	if(HID_SE0_RESUME_PLAYBACK_THRESHOLD_DESEL(*key))//We prioritize this over scroll mode.
 		vid_player.restart_playback_threshold_bar.selected = false;
 	if(HID_SE1_AUDIO_DESEL(*key) || vid_player.is_scroll_mode || vid_player.state != PLAYER_STATE_IDLE)
@@ -1678,6 +1720,8 @@ void Vid_init(bool draw)
 
 	//Reset everything first.
 	memset(&vid_player, 0x00, sizeof(Vid_player));
+	Lib_queue_init(&vid_player.library_queue);
+	vid_player.applied_cpu_time_limit = UINT8_MAX;
 
 	Sem_get_state(&state);
 	DEF_LOG_RESULT_SMART(result, Util_str_init(&vid_player.status), (result == DEF_SUCCESS), result);
@@ -1704,8 +1748,7 @@ void Vid_init(bool draw)
 			Util_sleep(20000);
 	}
 
-	if(!DEF_SEM_MODEL_IS_NEW(state.console_model) || !Util_is_core_available(2))
-		APT_SetAppCpuTimeLimit(10);
+	Vid_apply_cpu_budget(NULL);
 
 	DEF_LOG_RESULT_SMART(result, threadJoin(vid_player.init_thread, DEF_THREAD_WAIT_TIME), (result == DEF_SUCCESS), result);
 	threadFree(vid_player.init_thread);
@@ -1775,11 +1818,17 @@ void Vid_main(void)
 	Watch_handle_bit watch_handle_bit = (DEF_WATCH_HANDLE_BIT_GLOBAL | DEF_WATCH_HANDLE_BIT_VIDEO_PLAYER);
 	Sem_config config = { 0, };
 	Sem_state state = { 0, };
+	bool render_every_frame = false;
 	Vid_eye screen_pos_to_eye[SCREEN_POS_MAX] = { EYE_LEFT, EYE_RIGHT, EYE_LEFT, };
 	Vid_eye screen_pos_to_crop[SCREEN_POS_MAX] = { EYE_LEFT, EYE_RIGHT, EYE_LEFT, };
 
 	Sem_get_config(&config);
 	Sem_get_state(&state);
+	Lib_ui_3ds_set_language(config.lang);
+	Vid_apply_cpu_budget(&state);
+	//A paused frame is static. Leave each display buffer untouched until an input,
+	//watch update or explicit redraw arrives instead of spending a full frame on it.
+	render_every_frame = (bool)(!config.is_eco && vid_player.state != PLAYER_STATE_PAUSE);
 	if (config.is_night)
 	{
 		color = DEF_DRAW_WHITE;
@@ -1789,11 +1838,17 @@ void Vid_main(void)
 
 	if (Lib_ui_3ds_is_open())
 	{
-		Draw_frame_ready();
-		Draw_screen_ready(DRAW_SCREEN_BOTTOM, back_color);
-		Lib_ui_3ds_draw(Lib_library_index(), color, back_color);
-		Draw_bot_ui();
-		Draw_apply_draw();
+		if (Draw_is_refresh_needed())
+		{
+			Draw_set_refresh_needed(false);
+			Draw_frame_ready();
+			Draw_screen_ready(DRAW_SCREEN_BOTTOM, back_color);
+			Lib_ui_3ds_draw(Lib_library_index(), color, back_color);
+			Draw_bot_ui();
+			Draw_apply_draw();
+		}
+		else
+			gspWaitForVBlank();
 		return;
 	}
 
@@ -2118,7 +2173,7 @@ void Vid_main(void)
 
 	Vid_control_full_screen();
 
-	if(Util_watch_is_changed(watch_handle_bit) || Draw_is_refresh_needed() || !config.is_eco)
+	if(Util_watch_is_changed(watch_handle_bit) || Draw_is_refresh_needed() || render_every_frame)
 	{
 		Str_data time_str[2] = { 0, };
 		Str_data format_str = { 0, };
@@ -2480,6 +2535,29 @@ void Vid_main(void)
 					{
 						vid_player.playback_mode_button.x_size = -1;
 						vid_player.playback_mode_button.y_size = -1;
+					}
+
+					y_offset += (MENU_SETTING_0_ITEM_HEIGHT + MENU_SETTING_0_ITEM_SPACE_Y);
+					//CPU power profile (the 24px target is intentionally larger than legacy settings rows).
+					if(IS_X_IN_BOX(x_offset, MENU_SETTING_0_ITEM_WIDTH, MENU_BOX_X, MENU_BOX_X_END)
+					&& IS_Y_IN_BOX(y_offset, (double)UI_THEME_TOUCH_MIN, MENU_BOX_Y, MENU_BOX_Y_END))
+					{
+						char profile_text[96] = { 0, };
+						bool portuguese = (bool)(strncmp(config.lang, "pt", 2) == 0);
+						uint32_t selected_color = vid_player.power_profile_button.selected
+							? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_MUTED;
+						snprintf(profile_text, sizeof(profile_text), "%s%s",
+							portuguese ? "Perfil de energia: " : "Power profile: ",
+							Vid_power_profile_name(vid_player.power_profile, portuguese));
+						Draw_with_background_c(profile_text, x_offset, y_offset, FONT_SIZE_SETTING_0,
+							color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_CENTER, MENU_SETTING_0_ITEM_WIDTH,
+							UI_THEME_TOUCH_MIN, DRAW_BACKGROUND_ENTIRE_BOX,
+							&vid_player.power_profile_button, selected_color);
+					}
+					else
+					{
+						vid_player.power_profile_button.x_size = -1;
+						vid_player.power_profile_button.y_size = -1;
 					}
 
 					y_offset += (MENU_SETTING_0_ITEM_HEIGHT + MENU_SETTING_0_ITEM_SPACE_Y);
@@ -3496,6 +3574,86 @@ static void Vid_update_sleep_policy(void)
 	}
 }
 
+static void Vid_apply_cpu_budget(const Sem_state* supplied_state)
+{
+	Sem_state local_state = { 0, };
+	const Sem_state* state = supplied_state;
+	uint8_t limit = 10;
+	bool is_active = (bool)(vid_player.state != PLAYER_STATE_IDLE
+	&& vid_player.state != PLAYER_STATE_PAUSE);
+	bool eco_budget = (bool)(vid_player.power_profile == VID_POWER_PROFILE_ECO);
+	bool is_new = false;
+
+	if (!state)
+	{
+		Sem_get_state(&local_state);
+		state = &local_state;
+	}
+	is_new = DEF_SEM_MODEL_IS_NEW(state->console_model);
+	if (vid_player.power_profile == VID_POWER_PROFILE_AUTO
+	&& !state->is_charging && state->battery_level > 0
+	&& state->battery_level <= VID_POWER_LOW_BATTERY_PERCENT)
+		eco_budget = true;
+
+	if (is_active)
+	{
+		if (eco_budget)
+			limit = (uint8_t)(is_new ? 50 : 40);
+		else if (vid_player.power_profile == VID_POWER_PROFILE_PERFORMANCE)
+			limit = (uint8_t)(is_new ? 80 : 70);
+		else if (is_new && ((vid_player.sub_state & PLAYER_SUB_STATE_HW_DECODING)
+		|| !vid_player.use_multi_threaded_decoding))
+			limit = 20;
+		else
+			limit = (uint8_t)(is_new ? 80 : 70);
+	}
+
+	if (vid_player.applied_cpu_time_limit != limit)
+	{
+		APT_SetAppCpuTimeLimit(limit);
+		vid_player.applied_cpu_time_limit = limit;
+	}
+}
+
+static const char* Vid_power_profile_name(Vid_power_profile profile, bool portuguese)
+{
+	if (portuguese)
+	{
+		if (profile == VID_POWER_PROFILE_ECO)
+			return "Economia";
+		if (profile == VID_POWER_PROFILE_PERFORMANCE)
+			return "Desempenho";
+		return "Automático";
+	}
+	if (profile == VID_POWER_PROFILE_ECO)
+		return "Eco";
+	if (profile == VID_POWER_PROFILE_PERFORMANCE)
+		return "Performance";
+	return "Auto";
+}
+
+static void Vid_sync_library_queue_mode(void)
+{
+	Lib_queue_mode mode = LIB_QUEUE_MODE_NO_REPEAT;
+	if (vid_player.playback_mode == PLAYBACK_REPEAT)
+		mode = LIB_QUEUE_MODE_REPEAT;
+	else if (vid_player.playback_mode == PLAYBACK_IN_ORDER)
+		mode = LIB_QUEUE_MODE_IN_ORDER;
+	else if (vid_player.playback_mode == PLAYBACK_RANDOM)
+		mode = LIB_QUEUE_MODE_RANDOM;
+
+	if (Util_sync_lock(&vid_player.library_queue_lock, UINT64_MAX) == DEF_SUCCESS)
+	{
+		Lib_queue_set_mode(&vid_player.library_queue, mode);
+		Util_sync_unlock(&vid_player.library_queue_lock);
+	}
+}
+
+static void Vid_library_queue_changed(void)
+{
+	vid_player.library_queue_auto_profile = false;
+}
+
 static void Vid_update_decoding_delay(double decoding_time, double* total_delay, Vid_eye eye_index)
 {
 	if((vid_player.video_frametime[eye_index] - decoding_time) < 0 && vid_player.allow_skip_frames && vid_player.video_frametime[eye_index] != 0)
@@ -3836,6 +3994,7 @@ static void Vid_init_settings(void)
 	vid_player.allow_skip_frames = false;
 	vid_player.allow_skip_key_frames = false;
 	vid_player.playback_mode = PLAYBACK_NO_REPEAT;
+	vid_player.power_profile = VID_POWER_PROFILE_AUTO;
 	vid_player.move_content_mode = MOVE_BOTH;
 	vid_player.seek_duration = 5;
 	vid_player.restart_playback_threshold = 48;
@@ -4116,6 +4275,7 @@ static uint32_t Vid_load_settings(void)
 	{
 		const uint8_t settings_element_list[] =
 		{
+			SETTINGS_ELEMENTS_V7,
 			SETTINGS_ELEMENTS_V6,
 			SETTINGS_ELEMENTS_V5,
 			SETTINGS_ELEMENTS_V4,
@@ -4159,6 +4319,7 @@ static uint32_t Vid_load_settings(void)
 	vid_player.disable_subtitle = ((settings_valid_until > 15) ? (strtoul(DEF_STR_NEVER_NULL(&out_data[15]), NULL, 10) != 0) : false);
 	vid_player.restart_playback_threshold = ((settings_valid_until > 16) ? (uint16_t)Util_max(strtoul(DEF_STR_NEVER_NULL(&out_data[16]), NULL, 10), 0) : 48);
 	vid_player.num_of_threads = ((settings_valid_until > 17) ? (uint8_t)Util_max(strtoul(DEF_STR_NEVER_NULL(&out_data[17]), NULL, 10), 0) : Vid_get_default_num_of_threads());
+	vid_player.power_profile = ((settings_valid_until > 18) ? (Vid_power_profile)strtoul(DEF_STR_NEVER_NULL(&out_data[18]), NULL, 10) : VID_POWER_PROFILE_AUTO);
 
 	for(uint8_t i = 0; i < DEF_UTIL_ARRAY_NUM_OF_ELEMENTS(out_data); i++)
 		Util_str_free(&out_data[i]);
@@ -4180,6 +4341,8 @@ static uint32_t Vid_load_settings(void)
 
 	if(vid_player.playback_mode >= PLAYBACK_MAX)
 		vid_player.playback_mode = PLAYBACK_NO_REPEAT;
+	if(vid_player.power_profile >= VID_POWER_PROFILE_MAX)
+		vid_player.power_profile = VID_POWER_PROFILE_AUTO;
 
 	if(vid_player.move_content_mode >= MOVE_MAX)
 		vid_player.move_content_mode = MOVE_DISABLE;
@@ -4189,6 +4352,8 @@ static uint32_t Vid_load_settings(void)
 
 	if(vid_player.num_of_threads > NUM_OF_THREADS_MAX || vid_player.num_of_threads < NUM_OF_THREADS_MIN)
 		vid_player.num_of_threads = Vid_get_default_num_of_threads();
+
+	Vid_sync_library_queue_mode();
 
 	free(cache);
 	cache = NULL;
@@ -4224,6 +4389,7 @@ static uint32_t Vid_save_settings(void)
 	Util_str_format_append(&data, "<15>%" PRIu8 "</15>", vid_player.disable_subtitle);
 	Util_str_format_append(&data, "<16>%" PRIu16 "</16>", vid_player.restart_playback_threshold);
 	Util_str_format_append(&data, "<17>%" PRIu8 "</17>", vid_player.num_of_threads);
+	Util_str_format_append(&data, "<18>%" PRIu32 "</18>", (uint32_t)vid_player.power_profile);
 
 	DEF_LOG_RESULT_SMART(result, Util_file_save_to_file("vid_settings.txt", DEF_MENU_MAIN_DIR, (uint8_t*)data.buffer, data.capacity, true), (result == DEF_SUCCESS), result);
 
@@ -4251,6 +4417,7 @@ static void Vid_log_settings(void)
 	DEF_LOG_BOOL(vid_player.disable_subtitle);
 	DEF_LOG_UINT(vid_player.restart_playback_threshold);
 	DEF_LOG_UINT(vid_player.num_of_threads);
+	DEF_LOG_HEX((uint32_t)vid_player.power_profile);
 }
 
 void frame_worker_thread_start(const void* frame_handle)
@@ -4349,6 +4516,7 @@ void Vid_init_thread(void* arg)
 	Vid_init_variable();
 	Vid_exit_full_screen();
 
+	DEF_LOG_RESULT_SMART(result, Util_sync_create(&vid_player.library_queue_lock, SYNC_TYPE_NON_RECURSIVE_MUTEX), (result == DEF_SUCCESS), result);
 	DEF_LOG_RESULT_SMART(result, Util_sync_create(&vid_player.texture_init_free_lock, SYNC_TYPE_NON_RECURSIVE_MUTEX), (result == DEF_SUCCESS), result);
 	DEF_LOG_RESULT_SMART(result, Util_sync_create(&vid_player.delay_update_lock, SYNC_TYPE_NON_RECURSIVE_MUTEX), (result == DEF_SUCCESS), result);
 
@@ -4379,6 +4547,7 @@ void Vid_init_thread(void* arg)
 	vid_player.show_raw_audio_buffer_graph_button = Draw_get_empty_image();
 	vid_player.scroll_bar = Draw_get_empty_image();
 	vid_player.playback_mode_button = Draw_get_empty_image();
+	vid_player.power_profile_button = Draw_get_empty_image();
 	vid_player.select_subtitle_track_button = Draw_get_empty_image();
 	vid_player.disable_audio_button = Draw_get_empty_image();
 	vid_player.disable_video_button = Draw_get_empty_image();
@@ -4412,6 +4581,7 @@ void Vid_init_thread(void* arg)
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.move_content_mode, sizeof(vid_player.move_content_mode));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.remember_video_pos, sizeof(vid_player.remember_video_pos));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.playback_mode, sizeof(vid_player.playback_mode));
+	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.power_profile, sizeof(vid_player.power_profile));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.menu_mode, sizeof(vid_player.menu_mode));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.lower_resolution, sizeof(vid_player.lower_resolution));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.show_decoding_graph, sizeof(vid_player.show_decoding_graph));
@@ -4447,6 +4617,7 @@ void Vid_init_thread(void* arg)
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.move_content_button.selected, sizeof(vid_player.move_content_button.selected));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.remember_video_pos_button.selected, sizeof(vid_player.remember_video_pos_button.selected));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.playback_mode_button.selected, sizeof(vid_player.playback_mode_button.selected));
+	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.power_profile_button.selected, sizeof(vid_player.power_profile_button.selected));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.disable_audio_button.selected, sizeof(vid_player.disable_audio_button.selected));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.disable_video_button.selected, sizeof(vid_player.disable_video_button.selected));
 	Util_watch_add(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.disable_subtitle_button.selected, sizeof(vid_player.disable_subtitle_button.selected));
@@ -4493,6 +4664,12 @@ void Vid_init_thread(void* arg)
 	Util_str_add(&vid_player.status, "\nLoading library...");
 	DEF_LOG_RESULT_SMART(result, Lib_library_init(), (result == DEF_SUCCESS || result == DEF_ERR_ALREADY_INITIALIZED), result);
 	Lib_ui_3ds_init();
+	Lib_ui_3ds_set_queue_change_callback(Vid_library_queue_changed);
+	{
+		Sem_config config = { 0, };
+		Sem_get_config(&config);
+		Lib_ui_3ds_set_language(config.lang);
+	}
 
 	Util_str_add(&vid_player.status, "\nLoading textures...");
 	vid_player.banner_texture_handle = Draw_get_free_sheet_num();
@@ -4558,6 +4735,7 @@ void Vid_exit_thread(void* arg)
 	Lib_ui_3ds_exit();
 	Lib_library_set_paused(false);
 	Lib_library_exit();
+	Lib_queue_free(&vid_player.library_queue);
 	threadFree(vid_player.decode_thread);
 	threadFree(vid_player.decode_video_thread);
 	threadFree(vid_player.convert_thread);
@@ -4583,6 +4761,7 @@ void Vid_exit_thread(void* arg)
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.move_content_mode);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.remember_video_pos);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.playback_mode);
+	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.power_profile);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.menu_mode);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.lower_resolution);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.show_decoding_graph);
@@ -4618,6 +4797,7 @@ void Vid_exit_thread(void* arg)
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.move_content_button.selected);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.remember_video_pos_button.selected);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.playback_mode_button.selected);
+	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.power_profile_button.selected);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.disable_audio_button.selected);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.disable_video_button.selected);
 	Util_watch_remove(WATCH_HANDLE_VIDEO_PLAYER, &vid_player.disable_subtitle_button.selected);
@@ -4659,6 +4839,7 @@ void Vid_exit_thread(void* arg)
 
 	Util_sync_destroy(&vid_player.texture_init_free_lock);
 	Util_sync_destroy(&vid_player.delay_update_lock);
+	Util_sync_destroy(&vid_player.library_queue_lock);
 
 	vid_player.inited = false;
 
@@ -4937,28 +5118,7 @@ void Vid_decode_thread(void* arg)
 										Draw_large_texture_set_filter(&vid_player.large_image[i][k], vid_player.use_linear_texture_filter);
 								}
 
-								{
-									bool is_multi_threaded_decoding_enabled = false;
-
-									for(uint8_t i = 0; i < num_of_video_tracks; i++)
-									{
-										if(vid_player.video_info[i].thread_type != MEDIA_THREAD_TYPE_NONE)
-										{
-											is_multi_threaded_decoding_enabled = true;
-											break;
-										}
-									}
-
-									if(DEF_SEM_MODEL_IS_NEW(state.console_model) && (!is_multi_threaded_decoding_enabled || (vid_player.sub_state & PLAYER_SUB_STATE_HW_DECODING)))
-										APT_SetAppCpuTimeLimit(20);
-									else
-									{
-										if(DEF_SEM_MODEL_IS_NEW(state.console_model))
-											APT_SetAppCpuTimeLimit(80);
-										else
-											APT_SetAppCpuTimeLimit(70);
-									}
-								}
+								Vid_apply_cpu_budget(NULL);
 
 								vid_player.num_of_video_tracks = num_of_video_tracks;
 							}
@@ -5343,7 +5503,9 @@ void Vid_decode_thread(void* arg)
 					else if(vid_player.remember_video_pos && event == DECODE_THREAD_PLAY_NEXT_REQUEST)
 						Util_file_delete_file(cache_file_name.buffer, DEF_MENU_MAIN_DIR "saved_pos/");
 
-					Lib_library_set_paused(false);
+					if (event != DECODE_THREAD_PLAY_NEXT_REQUEST)
+						vid_player.library_queue_active = false;
+					Lib_library_set_paused((bool)(event == DECODE_THREAD_PLAY_NEXT_REQUEST));
 
 					//Wait for read packet thread (also flush queues).
 					DEF_LOG_RESULT_SMART(result, Util_queue_add(&vid_player.read_packet_thread_command_queue, READ_PACKET_THREAD_ABORT_REQUEST,
@@ -5397,53 +5559,79 @@ void Vid_decode_thread(void* arg)
 					vid_player.seek_bar.selected = false;
 					vid_player.show_current_pos_until = 0;
 
-					if(event == DECODE_THREAD_PLAY_NEXT_REQUEST && vid_player.playback_mode != PLAYBACK_NO_REPEAT)
+					Vid_file* next_file = NULL;
+					if (event == DECODE_THREAD_PLAY_NEXT_REQUEST && vid_player.library_queue_active)
 					{
-						Vid_file* file_data = (Vid_file*)malloc(sizeof(Vid_file));
-
-						if(vid_player.playback_mode == PLAYBACK_IN_ORDER || vid_player.playback_mode == PLAYBACK_RANDOM)
+						uint64_t next_id = 0;
+						const Lib_item* next_item = NULL;
+						bool has_next = false;
+						if (Util_sync_lock(&vid_player.library_queue_lock, UINT64_MAX) == DEF_SUCCESS)
 						{
-							for(uint32_t i = 0; i < (vid_player.playback_mode == PLAYBACK_RANDOM ? Util_expl_query_num_of_file() + 256 : Util_expl_query_num_of_file()); i++)
+							has_next = Lib_queue_next(&vid_player.library_queue, &next_id);
+							Util_sync_unlock(&vid_player.library_queue_lock);
+						}
+						if (has_next)
+						{
+							next_item = Lib_index_find_id_const(Lib_library_index(), next_id);
+							next_file = Vid_library_file_from_item(next_item);
+						}
+						if (!next_file)
+						{
+							vid_player.library_queue_active = false;
+							Lib_library_set_paused(false);
+						}
+					}
+					else if (event == DECODE_THREAD_PLAY_NEXT_REQUEST
+					&& vid_player.playback_mode != PLAYBACK_NO_REPEAT)
+					{
+						next_file = (Vid_file*)calloc(1, sizeof(*next_file));
+						if (vid_player.playback_mode == PLAYBACK_IN_ORDER || vid_player.playback_mode == PLAYBACK_RANDOM)
+						{
+							for (uint32_t i = 0; i < (vid_player.playback_mode == PLAYBACK_RANDOM
+							? Util_expl_query_num_of_file() + 256 : Util_expl_query_num_of_file()); i++)
 							{
-								if(vid_player.file.index + 1 >= Util_expl_query_num_of_file())
+								if (vid_player.file.index + 1 >= Util_expl_query_num_of_file())
 									vid_player.file.index = 0;
 								else
 									vid_player.file.index++;
-
-								if(Util_expl_query_type(vid_player.file.index) & FILE_TYPE_FILE)
+								if (Util_expl_query_type(vid_player.file.index) & FILE_TYPE_FILE)
 								{
 									srand(time(NULL) + i);
-									if(vid_player.playback_mode == PLAYBACK_IN_ORDER)
-										break;
-									else if(rand() % 5 == 1)//1 in 5
+									if (vid_player.playback_mode == PLAYBACK_IN_ORDER || rand() % 5 == 1)
 										break;
 								}
 							}
 						}
-
-						if(file_data)
+						if (next_file)
 						{
 							Str_data temp = { 0, };
-
-							//Create a message.
-							file_data->index = vid_player.file.index;
-
-							if(Util_expl_query_file_name(file_data->index, &temp) == DEF_SUCCESS)
-								snprintf(file_data->name, sizeof(file_data->name), "%s", temp.buffer);
-							if(Util_expl_query_current_dir(&temp) == DEF_SUCCESS)
-								snprintf(file_data->directory, sizeof(file_data->directory), "%s", temp.buffer);
-
+							next_file->index = vid_player.file.index;
+							if (Util_expl_query_file_name(next_file->index, &temp) == DEF_SUCCESS)
+								snprintf(next_file->name, sizeof(next_file->name), "%s", temp.buffer);
+							if (Util_expl_query_current_dir(&temp) == DEF_SUCCESS)
+								snprintf(next_file->directory, sizeof(next_file->directory), "%s", temp.buffer);
 							Util_str_free(&temp);
 						}
+					}
 
-						//Play next video.
-						DEF_LOG_RESULT_SMART(result, Util_queue_add(&vid_player.decode_thread_command_queue, DECODE_THREAD_PLAY_REQUEST,
-						file_data, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_NONE), (result == DEF_SUCCESS), result);
-
-						vid_player.state = PLAYER_STATE_PREPARE_PLAYING;
+					if (next_file)
+					{
+						result = Util_queue_add(&vid_player.decode_thread_command_queue,
+						DECODE_THREAD_PLAY_REQUEST, next_file, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_NONE);
+						if (result == DEF_SUCCESS)
+							vid_player.state = PLAYER_STATE_PREPARE_PLAYING;
+						else
+					{
+						free(next_file);
+						if (vid_player.library_queue_active)
+							vid_player.library_queue_active = false;
+						Lib_library_set_paused(false);
+						vid_player.state = PLAYER_STATE_IDLE;
+					}
 					}
 					else
 					{
+						Lib_library_set_paused(false);
 						for(uint32_t i = 0; i < EYE_MAX; i++)
 							Vid_fit_to_screen(NON_FULL_SCREEN_WIDTH, NON_FULL_SCREEN_HEIGHT, i);
 
@@ -6882,6 +7070,13 @@ static void Vid_expl_callback(Str_data* file, Str_data* dir)
 {
 	uint32_t result = DEF_ERR_OTHER;
 	Vid_file* file_data = (Vid_file*)malloc(sizeof(Vid_file));
+	vid_player.library_queue_active = false;
+	Lib_library_set_paused(true);
+	if (!file_data)
+	{
+		Lib_library_set_paused(false);
+		return;
+	}
 
 	//Create a message.
 	if(file_data)
@@ -6893,8 +7088,14 @@ static void Vid_expl_callback(Str_data* file, Str_data* dir)
 			snprintf(file_data->directory, sizeof(file_data->directory), "%s", dir->buffer);
 	}
 
-	DEF_LOG_RESULT_SMART(result, Util_queue_add(&vid_player.decode_thread_command_queue, DECODE_THREAD_PLAY_REQUEST,
-	file_data, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_NONE), (result == DEF_SUCCESS), result);
+	result = Util_queue_add(&vid_player.decode_thread_command_queue, DECODE_THREAD_PLAY_REQUEST,
+	file_data, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_NONE);
+	DEF_LOG_RESULT(Util_queue_add, (result == DEF_SUCCESS), result);
+	if (result != DEF_SUCCESS)
+	{
+		free(file_data);
+		Lib_library_set_paused(false);
+	}
 }
 
 static void Vid_expl_cancel_callback(void)
@@ -6925,18 +7126,192 @@ static Lib_video_codec Vid_library_codec(const char* short_name)
 	return LIB_VIDEO_CODEC_UNKNOWN;
 }
 
-static void Vid_library_play_callback(const Lib_item* item)
+typedef struct
+{
+	uint64_t id;
+	int season;
+	int episode;
+} Vid_episode_entry;
+
+static int Vid_episode_entry_compare(const void* left, const void* right)
+{
+	const Vid_episode_entry* a = (const Vid_episode_entry*)left;
+	const Vid_episode_entry* b = (const Vid_episode_entry*)right;
+	if (a->season != b->season)
+		return (a->season < b->season) ? -1 : 1;
+	if (a->episode != b->episode)
+		return (a->episode < b->episode) ? -1 : 1;
+	return (a->id < b->id) ? -1 : (a->id > b->id);
+}
+
+static uint32_t Vid_library_fold_codepoint(uint32_t codepoint)
+{
+	if (codepoint >= 'A' && codepoint <= 'Z')
+		return codepoint + ('a' - 'A');
+	if ((codepoint >= 0x00C0 && codepoint <= 0x00D6)
+	|| (codepoint >= 0x00D8 && codepoint <= 0x00DE))
+		return codepoint + 0x20;
+	if (codepoint == 0x0178)
+		return 0x00FF;
+	return codepoint;
+}
+
+static uint32_t Vid_library_next_codepoint(const char** text)
+{
+	const unsigned char* bytes = (const unsigned char*)*text;
+	uint32_t codepoint = 0;
+	uint8_t extra = 0;
+	if (bytes[0] < 0x80)
+	{
+		(*text)++;
+		return bytes[0];
+	}
+	if ((bytes[0] & 0xE0) == 0xC0)
+	{
+		codepoint = bytes[0] & 0x1F;
+		extra = 1;
+	}
+	else if ((bytes[0] & 0xF0) == 0xE0)
+	{
+		codepoint = bytes[0] & 0x0F;
+		extra = 2;
+	}
+	else if ((bytes[0] & 0xF8) == 0xF0)
+	{
+		codepoint = bytes[0] & 0x07;
+		extra = 3;
+	}
+	else
+	{
+		(*text)++;
+		return bytes[0];
+	}
+	for (uint8_t i = 1; i <= extra; i++)
+	{
+		if (bytes[i] == 0x00 || (bytes[i] & 0xC0) != 0x80)
+		{
+			(*text)++;
+			return bytes[0];
+		}
+		codepoint = (codepoint << 6) | (bytes[i] & 0x3F);
+	}
+	*text += extra + 1;
+	return codepoint;
+}
+
+static bool Vid_library_title_equal(const char* a, const char* b)
+{
+	if (!a || !b)
+		return false;
+	while (*a && *b)
+	{
+		if (Vid_library_fold_codepoint(Vid_library_next_codepoint(&a))
+		!= Vid_library_fold_codepoint(Vid_library_next_codepoint(&b)))
+			return false;
+	}
+	return (bool)(*a == 0 && *b == 0);
+}
+
+static bool Vid_library_build_episode_profile(const Lib_item* selected)
+{
+	const Lib_index* index = Lib_library_index();
+	Vid_episode_entry* entries = NULL;
+	uint64_t* ids = NULL;
+	char selected_title[256] = { 0, };
+	int selected_season = -1;
+	int selected_episode = -1;
+	size_t count = 0;
+	size_t limit = 0;
+	bool selected_found = false;
+	bool success = false;
+	bool locked = false;
+
+	if (!selected || !selected->path || !index)
+		return false;
+	if (!Lib_name_parse(selected->path, selected_title, sizeof(selected_title),
+	&selected_season, &selected_episode, NULL))
+		return false;
+	limit = (index->count > 4096) ? 4096 : index->count;
+	entries = (Vid_episode_entry*)calloc(limit ? limit : 1, sizeof(*entries));
+	if (!entries)
+		return false;
+
+	if (selected_episode >= 0)
+	{
+		for (size_t i = 0; i < index->count && count < limit; i++)
+		{
+			char title[256] = { 0, };
+			int season = -1;
+			int episode = -1;
+			const Lib_item* candidate = &index->items[i];
+			if (!candidate->path || (candidate->flags & LIB_ITEM_FLAG_MISSING)
+			|| !Lib_name_parse(candidate->path, title, sizeof(title), &season, &episode, NULL)
+			|| episode < 0 || !Vid_library_title_equal(selected_title, title))
+				continue;
+			entries[count].id = candidate->id;
+			entries[count].season = season;
+			entries[count].episode = episode;
+			if (candidate->id == selected->id)
+				selected_found = true;
+			count++;
+		}
+	}
+	if (selected_episode >= 0 && !selected_found)
+	{
+		if (count == limit && count > 0)
+			count--;
+		entries[count].id = selected->id;
+		entries[count].season = selected_season;
+		entries[count].episode = selected_episode;
+		count++;
+	}
+	if (count == 0)
+	{
+		entries[0].id = selected->id;
+		entries[0].season = selected_season;
+		entries[0].episode = selected_episode;
+		count = 1;
+	}
+	qsort(entries, count, sizeof(*entries), Vid_episode_entry_compare);
+	ids = (uint64_t*)malloc(count * sizeof(*ids));
+	if (!ids)
+		goto cleanup;
+	for (size_t i = 0; i < count; i++)
+		ids[i] = entries[i].id;
+
+	locked = (bool)(Util_sync_lock(&vid_player.library_queue_lock, UINT64_MAX) == DEF_SUCCESS);
+	if (!locked)
+		goto cleanup;
+	{
+		Lib_queue_mode mode = Lib_queue_get_mode(&vid_player.library_queue);
+		success = Lib_queue_set(&vid_player.library_queue, ids, count);
+		if (success)
+		{
+			Lib_queue_set_mode(&vid_player.library_queue, mode);
+			(void)Lib_queue_set_cursor(&vid_player.library_queue, selected->id);
+			vid_player.library_queue_auto_profile = true;
+		}
+	}
+	Util_sync_unlock(&vid_player.library_queue_lock);
+	locked = false;
+
+	cleanup:
+	if (locked)
+		Util_sync_unlock(&vid_player.library_queue_lock);
+	free(ids);
+	free(entries);
+	return success;
+}
+
+static Vid_file* Vid_library_file_from_item(const Lib_item* item)
 {
 	Vid_file* file_data = NULL;
 	const char* slash = NULL;
-
 	if (!item || !item->path)
-		return;
-
+		return NULL;
 	file_data = (Vid_file*)calloc(1, sizeof(*file_data));
 	if (!file_data)
-		return;
-
+		return NULL;
 	slash = strrchr(item->path, '/');
 	if (slash)
 	{
@@ -6949,10 +7324,79 @@ static void Vid_library_play_callback(const Lib_item* item)
 	}
 	else
 		snprintf(file_data->name, sizeof(file_data->name), "%s", item->path);
-
 	file_data->index = UINT32_MAX;
+	return file_data;
+}
+
+static void Vid_library_play_callback(const Lib_item* item)
+{
+	Vid_file* file_data = NULL;
+	size_t queue_count = 0;
+	bool locked = false;
+	bool queue_ready = true;
+	bool rebuild_auto_profile = false;
+
+	if (!item || !item->path)
+		return;
+
+	Lib_library_set_paused(true);
+	locked = (bool)(Util_sync_lock(&vid_player.library_queue_lock, UINT64_MAX) == DEF_SUCCESS);
+	if (!locked)
+	{
+		Lib_library_set_paused(false);
+		return;
+	}
+	queue_count = Lib_queue_count(&vid_player.library_queue);
+	rebuild_auto_profile = (bool)(queue_count == 0 || vid_player.library_queue_auto_profile);
+	if (queue_count > 0 && !rebuild_auto_profile)
+	{
+		if (!Lib_queue_contains(&vid_player.library_queue, item->id))
+			queue_ready = Lib_queue_add(&vid_player.library_queue, item->id);
+		if (queue_ready)
+			queue_ready = Lib_queue_set_cursor(&vid_player.library_queue, item->id);
+		if (!queue_ready)
+		{
+			queue_ready = Lib_queue_set(&vid_player.library_queue, &item->id, 1);
+			if (!queue_ready)
+				(void)Lib_queue_set(&vid_player.library_queue, NULL, 0);
+		}
+	}
+	Util_sync_unlock(&vid_player.library_queue_lock);
+	if (rebuild_auto_profile)
+	{
+		queue_ready = Vid_library_build_episode_profile(item);
+	}
+	if (!queue_ready)
+	{
+		if (Util_sync_lock(&vid_player.library_queue_lock, UINT64_MAX) == DEF_SUCCESS)
+		{
+			queue_ready = Lib_queue_set(&vid_player.library_queue, &item->id, 1);
+			if (!queue_ready)
+				(void)Lib_queue_set(&vid_player.library_queue, NULL, 0);
+			else
+				vid_player.library_queue_auto_profile = false;
+			Util_sync_unlock(&vid_player.library_queue_lock);
+		}
+		else
+			queue_ready = false;
+		if (queue_ready)
+			Vid_sync_library_queue_mode();
+	}
+	vid_player.library_queue_active = true;
+
+	file_data = Vid_library_file_from_item(item);
+	if (!file_data)
+	{
+		vid_player.library_queue_active = false;
+		Lib_library_set_paused(false);
+		return;
+	}
 	if (Util_queue_add(&vid_player.decode_thread_command_queue,
 	DECODE_THREAD_PLAY_REQUEST, file_data, QUEUE_OP_TIMEOUT_US,
 	QUEUE_OPTION_NONE) != DEF_SUCCESS)
+	{
 		free(file_data);
+		vid_player.library_queue_active = false;
+		Lib_library_set_paused(false);
+	}
 }

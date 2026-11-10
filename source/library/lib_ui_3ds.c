@@ -8,22 +8,29 @@
 #include "library/lib_thumb.h"
 #include "library/lib_ui.h"
 #include "system/draw/draw.h"
+#include "system/draw/theme.h"
 #include "system/util/decoder.h"
 #include "system/util/err_types.h"
 #include "system/util/hid.h"
 #include "system/util/keyboard.h"
 #include "system/util/str.h"
+#include "system/util/sync.h"
 
 #define LIB_UI_3DS_VISIBLE_ITEMS		(uint8_t)(8)
+#define LIB_UI_3DS_ROWS					(uint8_t)(7)
+#define LIB_UI_3DS_GRID_VISIBLE_ITEMS	(size_t)(8)
 #define LIB_UI_3DS_GRID_COLUMNS			(size_t)(2)
-#define LIB_UI_3DS_LIST_ROW_HEIGHT		(float)(22)
+#define LIB_UI_3DS_LIST_ROW_HEIGHT		UI_THEME_TOUCH_MIN
 #define LIB_UI_3DS_LIST_ROW_X			(float)(4)
-#define LIB_UI_3DS_LIST_ROW_Y			(float)(30)
+#define LIB_UI_3DS_LIST_ROW_Y			(float)(22)
 #define LIB_UI_3DS_LIST_ROW_WIDTH		(float)(312)
 #define LIB_UI_3DS_GRID_CELL_WIDTH		(float)(156)
-#define LIB_UI_3DS_GRID_CELL_HEIGHT		(float)(45)
+#define LIB_UI_3DS_GRID_CELL_HEIGHT		(float)(42)
 #define LIB_UI_3DS_GRID_X				(float)(4)
-#define LIB_UI_3DS_GRID_Y				(float)(29)
+#define LIB_UI_3DS_GRID_Y				(float)(22)
+#define LIB_UI_3DS_BUTTON_ROW_HEIGHT		UI_THEME_TOUCH_MIN
+#define LIB_UI_3DS_BUTTON_ROW_0_Y		(float)(192)
+#define LIB_UI_3DS_BUTTON_ROW_1_Y		(float)(216)
 #define LIB_UI_3DS_THUMB_WIDTH			(uint32_t)(128)
 #define LIB_UI_3DS_THUMB_HEIGHT			(uint32_t)(72)
 #define LIB_UI_3DS_THUMB_MAX_FILE_SIZE	(uint32_t)(524288)
@@ -45,6 +52,42 @@ static Lib_ui_3ds_thumb library_thumb_cache[LIB_UI_3DS_VISIBLE_ITEMS] = { 0, };
 static uint64_t library_thumb_clock = 0;
 static bool library_ui_inited = false;
 static bool library_ui_open = false;
+static bool library_keep_paused_after_play = false;
+static bool library_queue_view = false;
+static Lib_queue* library_queue = NULL;
+static Sync_data* library_queue_lock = NULL;
+static size_t library_queue_cursor = 0;
+static size_t library_queue_offset = 0;
+static bool library_is_portuguese = false;
+static Lib_ui_3ds_queue_change_callback library_queue_change_callback = NULL;
+
+static void Lib_ui_3ds_request_redraw(void)
+{
+	Draw_set_refresh_needed(true);
+}
+
+static void Lib_ui_3ds_set_grid(bool enabled)
+{
+	Lib_ui_set_grid_mode(&library_ui, enabled);
+	(void)Lib_ui_set_rows(&library_ui, enabled ? (uint8_t)LIB_UI_3DS_GRID_VISIBLE_ITEMS : LIB_UI_3DS_ROWS);
+	Lib_ui_3ds_request_redraw();
+}
+
+static bool Lib_ui_3ds_queue_lock(void)
+{
+	return (bool)(library_queue_lock && Util_sync_lock(library_queue_lock, UINT64_MAX) == DEF_SUCCESS);
+}
+
+static void Lib_ui_3ds_queue_unlock(bool locked)
+{
+	if (locked)
+		Util_sync_unlock(library_queue_lock);
+}
+
+static const char* Lib_ui_3ds_text(const char* english, const char* portuguese)
+{
+	return library_is_portuguese ? portuguese : english;
+}
 
 static void Lib_ui_3ds_free_thumbnails(void)
 {
@@ -63,8 +106,24 @@ void Lib_ui_3ds_init(void)
 		return;
 
 	Lib_ui_init(&library_ui);
-	(void)Lib_ui_set_rows(&library_ui, LIB_UI_3DS_VISIBLE_ITEMS);
+	(void)Lib_ui_set_rows(&library_ui, LIB_UI_3DS_ROWS);
 	library_ui_inited = true;
+}
+
+void Lib_ui_3ds_set_language(const char* language)
+{
+	bool is_portuguese = (bool)(language && strncmp(language, "pt", 2) == 0);
+	if (library_is_portuguese != is_portuguese)
+	{
+		library_is_portuguese = is_portuguese;
+		if (library_ui_open)
+			Lib_ui_3ds_request_redraw();
+	}
+}
+
+void Lib_ui_3ds_set_queue_change_callback(Lib_ui_3ds_queue_change_callback callback)
+{
+	library_queue_change_callback = callback;
 }
 
 void Lib_ui_3ds_exit(void)
@@ -74,6 +133,9 @@ void Lib_ui_3ds_exit(void)
 
 	Lib_ui_3ds_free_thumbnails();
 	Lib_ui_free(&library_ui);
+	library_queue = NULL;
+	library_queue_lock = NULL;
+	library_queue_change_callback = NULL;
 	library_ui_inited = false;
 	library_ui_open = false;
 }
@@ -83,15 +145,23 @@ bool Lib_ui_3ds_is_open(void)
 	return library_ui_open;
 }
 
-bool Lib_ui_3ds_open(const Lib_index* index)
+bool Lib_ui_3ds_open(const Lib_index* index, Lib_queue* queue, Sync_data* queue_lock,
+bool keep_library_paused)
 {
 	if (!library_ui_inited || !Lib_library_is_initialized() || !index || Lib_library_is_busy()
 	|| !Lib_ui_rebuild(&library_ui, index))
 		return false;
 
 	Lib_ui_3ds_free_thumbnails();
+	library_queue = queue;
+	library_queue_lock = queue_lock;
+	library_keep_paused_after_play = keep_library_paused;
+	library_queue_view = false;
+	library_queue_cursor = 0;
+	library_queue_offset = 0;
 	library_ui_open = true;
 	Lib_library_set_paused(true);
+	Lib_ui_3ds_request_redraw();
 	return true;
 }
 
@@ -102,7 +172,10 @@ void Lib_ui_3ds_close(void)
 
 	library_ui_open = false;
 	Lib_ui_3ds_free_thumbnails();
-	Lib_library_set_paused(false);
+	if (!library_keep_paused_after_play)
+		Lib_library_set_paused(false);
+	library_keep_paused_after_play = false;
+	Lib_ui_3ds_request_redraw();
 }
 
 static void Lib_ui_3ds_rebuild(const Lib_index* index)
@@ -130,15 +203,15 @@ static void Lib_ui_3ds_open_search(const Lib_index* index)
 	if (Util_str_init(&result_text) != DEF_SUCCESS)
 		goto cleanup;
 	result_inited = true;
-	if (Util_str_set(&hint, "Search titles") != DEF_SUCCESS
+	if (Util_str_set(&hint, Lib_ui_3ds_text("Search titles", "Buscar títulos")) != DEF_SUCCESS
 	|| Util_str_set(&initial_text, library_ui.search) != DEF_SUCCESS)
 		goto cleanup;
 
-	keyboard_inited = true;
 	if (Util_keyboard_init(KEYBOARD_TYPE_QWERTY, KEYBOARD_ACCEPTABLE_INPUT_NO_EMPTY,
 	KEYBOARD_DISPLAY_BUTTON_LEFT_MIDDLE, LIB_UI_3DS_SEARCH_CHARS, &hint, &initial_text,
 	KEYBOARD_PASSWORD_MODE_OFF, KEYBOARD_FEATURES_BIT_NONE) != DEF_SUCCESS)
 		goto cleanup;
+	keyboard_inited = true;
 	if (Util_keyboard_launch(&result_text, NULL) == DEF_SUCCESS && result_text.buffer)
 		(void)Lib_ui_set_search(&library_ui, result_text.buffer, index);
 
@@ -151,6 +224,115 @@ static void Lib_ui_3ds_open_search(const Lib_index* index)
 		Util_str_free(&initial_text);
 	if (hint_inited)
 		Util_str_free(&hint);
+	Lib_ui_3ds_request_redraw();
+}
+
+static size_t Lib_ui_3ds_queue_count(void)
+{
+	size_t count = 0;
+	bool locked = Lib_ui_3ds_queue_lock();
+	if (locked && library_queue)
+		count = Lib_queue_count(library_queue);
+	Lib_ui_3ds_queue_unlock(locked);
+	return count;
+}
+
+static bool Lib_ui_3ds_queue_get(size_t position, uint64_t* id)
+{
+	bool found = false;
+	bool locked = Lib_ui_3ds_queue_lock();
+	if (locked && library_queue)
+		found = Lib_queue_get_at(library_queue, position, id);
+	Lib_ui_3ds_queue_unlock(locked);
+	return found;
+}
+
+static void Lib_ui_3ds_queue_add_current(const Lib_index* index)
+{
+	const Lib_item* item = Lib_ui_current(&library_ui, index);
+	bool locked = Lib_ui_3ds_queue_lock();
+	if (locked && library_queue && item)
+	{
+		bool was_present = Lib_queue_contains(library_queue, item->id);
+		if (!was_present && Lib_queue_add(library_queue, item->id) && library_queue_change_callback)
+			library_queue_change_callback();
+	}
+	Lib_ui_3ds_queue_unlock(locked);
+	Lib_ui_3ds_request_redraw();
+}
+
+static const Lib_item* Lib_ui_3ds_queue_current(const Lib_index* index)
+{
+	uint64_t id = 0;
+	if (!index || !Lib_ui_3ds_queue_get(library_queue_cursor, &id))
+		return NULL;
+	return Lib_index_find_id_const(index, id);
+}
+
+static void Lib_ui_3ds_play_item(const Lib_item* item, Lib_ui_3ds_play_callback play_callback)
+{
+	if (!item || !play_callback)
+		return;
+	play_callback(item);
+	library_keep_paused_after_play = true;
+	Lib_ui_3ds_close();
+}
+
+static void Lib_ui_3ds_queue_play_current(const Lib_index* index,
+Lib_ui_3ds_play_callback play_callback)
+{
+	const Lib_item* item = Lib_ui_3ds_queue_current(index);
+	bool locked = Lib_ui_3ds_queue_lock();
+	if (locked && library_queue && item)
+		(void)Lib_queue_set_cursor(library_queue, item->id);
+	Lib_ui_3ds_queue_unlock(locked);
+	Lib_ui_3ds_play_item(item, play_callback);
+}
+
+static void Lib_ui_3ds_queue_remove_current(void)
+{
+	uint64_t id = 0;
+	bool locked = Lib_ui_3ds_queue_lock();
+	if (locked && library_queue && Lib_queue_get_at(library_queue, library_queue_cursor, &id))
+	{
+		if (Lib_queue_remove(library_queue, id) && library_queue_change_callback)
+			library_queue_change_callback();
+		if (library_queue_cursor > 0)
+			library_queue_cursor--;
+		if (library_queue_offset > library_queue_cursor)
+			library_queue_offset = library_queue_cursor;
+	}
+	Lib_ui_3ds_queue_unlock(locked);
+	Lib_ui_3ds_request_redraw();
+}
+
+static void Lib_ui_3ds_queue_clear(void)
+{
+	bool locked = Lib_ui_3ds_queue_lock();
+	if (locked && library_queue)
+	{
+		if (Lib_queue_set(library_queue, NULL, 0) && library_queue_change_callback)
+			library_queue_change_callback();
+	}
+	Lib_ui_3ds_queue_unlock(locked);
+	library_queue_cursor = 0;
+	library_queue_offset = 0;
+	Lib_ui_3ds_request_redraw();
+}
+
+static void Lib_ui_3ds_queue_set_mode(Lib_queue_mode mode)
+{
+	bool locked = Lib_ui_3ds_queue_lock();
+	if (locked && library_queue)
+		Lib_queue_set_mode(library_queue, mode);
+	Lib_ui_3ds_queue_unlock(locked);
+	Lib_ui_3ds_request_redraw();
+}
+
+static void Lib_ui_3ds_play_browser_current(const Lib_index* index,
+Lib_ui_3ds_play_callback play_callback)
+{
+	Lib_ui_3ds_play_item(Lib_ui_current(&library_ui, index), play_callback);
 }
 
 static Lib_sort_key Lib_ui_3ds_next_sort(Lib_sort_key key, bool forward)
@@ -163,12 +345,17 @@ static Lib_sort_key Lib_ui_3ds_next_sort(Lib_sort_key key, bool forward)
 void Lib_ui_3ds_main(const Hid_info* key, const Lib_index* index,
 Lib_ui_3ds_play_callback play_callback)
 {
-	const Lib_item* item = NULL;
+	bool touch_pressed = false;
+	int16_t touch_x = 0;
+	int16_t touch_y = 0;
 
 	if (!library_ui_open || !key || !index)
 		return;
 
 	Lib_ui_3ds_rebuild(index);
+	touch_pressed = DEF_HID_PR_EM(key->touch, 1);
+	touch_x = key->touch_x_last;
+	touch_y = key->touch_y_last;
 	if (DEF_HID_PR_EM(key->b, 1) || DEF_HID_HD(key->b)
 	|| DEF_HID_PR_EM(key->select, 1) || DEF_HID_HD(key->select))
 	{
@@ -177,20 +364,142 @@ Lib_ui_3ds_play_callback play_callback)
 		return;
 	}
 
+	if (touch_pressed)
+	{
+		if (library_queue_view)
+		{
+			if (touch_y >= LIB_UI_3DS_BUTTON_ROW_1_Y)
+			{
+				if (touch_x < 80)
+					Lib_ui_3ds_queue_set_mode(LIB_QUEUE_MODE_NO_REPEAT);
+				else if (touch_x < 160)
+					Lib_ui_3ds_queue_set_mode(LIB_QUEUE_MODE_REPEAT);
+				else if (touch_x < 240)
+					Lib_ui_3ds_queue_set_mode(LIB_QUEUE_MODE_IN_ORDER);
+				else
+					Lib_ui_3ds_queue_set_mode(LIB_QUEUE_MODE_RANDOM);
+			}
+			else if (touch_y >= LIB_UI_3DS_BUTTON_ROW_0_Y)
+			{
+				if (touch_x < 80)
+					library_queue_view = false;
+				else if (touch_x < 160)
+					Lib_ui_3ds_queue_remove_current();
+				else if (touch_x < 240)
+					Lib_ui_3ds_queue_clear();
+				else
+					Lib_ui_3ds_queue_play_current(index, play_callback);
+			}
+			else if (touch_y >= LIB_UI_3DS_LIST_ROW_Y)
+			{
+				size_t row = (size_t)((touch_y - LIB_UI_3DS_LIST_ROW_Y) / LIB_UI_3DS_LIST_ROW_HEIGHT);
+				size_t target = library_queue_offset + row;
+				if (row < LIB_UI_3DS_ROWS && target < Lib_ui_3ds_queue_count())
+				{
+					library_queue_cursor = target;
+					Lib_ui_3ds_request_redraw();
+				}
+			}
+		}
+		else if (touch_y >= LIB_UI_3DS_BUTTON_ROW_1_Y)
+		{
+			if (touch_x < 64)
+				Lib_ui_3ds_queue_add_current(index);
+			else if (touch_x < 128)
+				Lib_ui_3ds_play_browser_current(index, play_callback);
+			else if (touch_x < 192)
+				Lib_ui_3ds_open_search(index);
+			else if (touch_x < 256)
+			{
+				Lib_ui_3ds_set_grid(!library_ui.grid_mode);
+			}
+			else
+				Lib_ui_3ds_close();
+		}
+		else if (touch_y >= LIB_UI_3DS_BUTTON_ROW_0_Y)
+		{
+			if (touch_x < 64)
+				(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_CONTINUE, index);
+			else if (touch_x < 128)
+				(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_RECENT, index);
+			else if (touch_x < 192)
+				(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_ALL, index);
+			else if (touch_x < 256)
+				(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_FAVORITES, index);
+			else
+				library_queue_view = true;
+			Lib_ui_3ds_request_redraw();
+		}
+		else if (touch_y >= LIB_UI_3DS_LIST_ROW_Y)
+		{
+			size_t row_height = library_ui.grid_mode
+				? (size_t)LIB_UI_3DS_GRID_CELL_HEIGHT : (size_t)LIB_UI_3DS_LIST_ROW_HEIGHT;
+			size_t row = (size_t)((touch_y - LIB_UI_3DS_LIST_ROW_Y) / row_height);
+			size_t visible = 0;
+			if (library_ui.grid_mode)
+				visible = row * LIB_UI_3DS_GRID_COLUMNS + (size_t)(touch_x >= 160);
+			else
+				visible = row;
+			if ((!library_ui.grid_mode || row < (LIB_UI_3DS_GRID_VISIBLE_ITEMS / LIB_UI_3DS_GRID_COLUMNS))
+			&& Lib_ui_select_visible(&library_ui, visible))
+				Lib_ui_3ds_request_redraw();
+		}
+		Lib_ui_3ds_request_redraw();
+		return;
+	}
+
 	if (DEF_HID_PR_EM(key->d_up, 1) || DEF_HID_HD(key->d_up))
-		Lib_ui_move_direction(&library_ui, 0, -1);
+	{
+		if (library_queue_view)
+		{
+			if (library_queue_cursor > 0)
+				library_queue_cursor--;
+			if (library_queue_cursor < library_queue_offset)
+				library_queue_offset = library_queue_cursor;
+		}
+		else
+			Lib_ui_move_direction(&library_ui, 0, -1);
+		Lib_ui_3ds_request_redraw();
+	}
 	else if (DEF_HID_PR_EM(key->d_down, 1) || DEF_HID_HD(key->d_down))
-		Lib_ui_move_direction(&library_ui, 0, 1);
+	{
+		if (library_queue_view)
+		{
+			size_t count = Lib_ui_3ds_queue_count();
+			if (library_queue_cursor + 1 < count)
+				library_queue_cursor++;
+			if (library_queue_cursor >= library_queue_offset + LIB_UI_3DS_ROWS)
+				library_queue_offset = library_queue_cursor - LIB_UI_3DS_ROWS + 1;
+		}
+		else
+			Lib_ui_move_direction(&library_ui, 0, 1);
+		Lib_ui_3ds_request_redraw();
+	}
 	else if (DEF_HID_PR_EM(key->d_left, 1) || DEF_HID_HD(key->d_left))
 	{
-		if (library_ui.grid_mode)
+		if (library_queue_view)
+		{
+			if (library_queue_cursor > 0)
+				library_queue_cursor--;
+			if (library_queue_cursor < library_queue_offset)
+				library_queue_offset = library_queue_cursor;
+		}
+		else if (library_ui.grid_mode)
 			Lib_ui_move_direction(&library_ui, -1, 0);
 		else
 			(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_CONTINUE, index);
 	}
 	else if (DEF_HID_PR_EM(key->d_right, 1) || DEF_HID_HD(key->d_right))
 	{
-		if (library_ui.grid_mode)
+		if (library_queue_view)
+		{
+			size_t count = Lib_ui_3ds_queue_count();
+			if (library_queue_cursor + 1 < count)
+				library_queue_cursor++;
+			if (library_queue_cursor >= library_queue_offset + LIB_UI_3DS_ROWS)
+				library_queue_offset = library_queue_cursor - LIB_UI_3DS_ROWS + 1;
+		}
+		else if (library_ui.grid_mode)
 			Lib_ui_move_direction(&library_ui, 1, 0);
 		else
 			(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_ALL, index);
@@ -199,9 +508,13 @@ Lib_ui_3ds_play_callback play_callback)
 		(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_RECENT, index);
 	else if (DEF_HID_PR_EM(key->r, 1) || DEF_HID_HD(key->r))
 		(void)Lib_ui_set_tab(&library_ui, LIB_VIEW_TAB_FAVORITES, index);
-	else if (DEF_HID_PR_EM(key->y, 1) || DEF_HID_HD(key->y))
-		Lib_ui_set_grid_mode(&library_ui, !library_ui.grid_mode);
-	else if (DEF_HID_PR_EM(key->x, 1) || DEF_HID_HD(key->x))
+	else if (library_queue_view && (DEF_HID_PR_EM(key->x, 1) || DEF_HID_HD(key->x)))
+		Lib_ui_3ds_queue_remove_current();
+	else if (library_queue_view && (DEF_HID_PR_EM(key->y, 1) || DEF_HID_HD(key->y)))
+		Lib_ui_3ds_queue_clear();
+	else if (!library_queue_view && (DEF_HID_PR_EM(key->y, 1) || DEF_HID_HD(key->y)))
+		Lib_ui_3ds_set_grid(!library_ui.grid_mode);
+	else if (!library_queue_view && (DEF_HID_PR_EM(key->x, 1) || DEF_HID_HD(key->x)))
 		Lib_ui_3ds_open_search(index);
 	else if (DEF_HID_PR_EM(key->start, 1) || DEF_HID_HD(key->start))
 		(void)Lib_ui_set_search(&library_ui, "", index);
@@ -213,13 +526,24 @@ Lib_ui_3ds_play_callback play_callback)
 		library_ui.sort.descending, index);
 	else if (DEF_HID_PR_EM(key->a, 1) || DEF_HID_HD(key->a))
 	{
-		item = Lib_ui_current(&library_ui, index);
-		if (item && play_callback)
-		{
-			play_callback(item);
-			Lib_ui_3ds_close();
-		}
+		if (library_queue_view)
+			Lib_ui_3ds_queue_play_current(index, play_callback);
+		else
+			Lib_ui_3ds_play_browser_current(index, play_callback);
 	}
+	if (DEF_HID_PR_EM(key->d_up, 1) || DEF_HID_HD(key->d_up)
+	|| DEF_HID_PR_EM(key->d_down, 1) || DEF_HID_HD(key->d_down)
+	|| DEF_HID_PR_EM(key->d_left, 1) || DEF_HID_HD(key->d_left)
+	|| DEF_HID_PR_EM(key->d_right, 1) || DEF_HID_HD(key->d_right)
+	|| DEF_HID_PR_EM(key->l, 1) || DEF_HID_HD(key->l)
+	|| DEF_HID_PR_EM(key->r, 1) || DEF_HID_HD(key->r)
+	|| DEF_HID_PR_EM(key->y, 1) || DEF_HID_HD(key->y)
+	|| DEF_HID_PR_EM(key->x, 1) || DEF_HID_HD(key->x)
+	|| DEF_HID_PR_EM(key->start, 1) || DEF_HID_HD(key->start)
+	|| DEF_HID_PR_EM(key->zl, 1) || DEF_HID_HD(key->zl)
+	|| DEF_HID_PR_EM(key->zr, 1) || DEF_HID_HD(key->zr)
+	|| DEF_HID_PR_EM(key->a, 1) || DEF_HID_HD(key->a))
+		Lib_ui_3ds_request_redraw();
 }
 
 static const char* Lib_ui_3ds_tab_name(Lib_view_tab tab)
@@ -227,19 +551,36 @@ static const char* Lib_ui_3ds_tab_name(Lib_view_tab tab)
 	switch (tab)
 	{
 		case LIB_VIEW_TAB_CONTINUE:
-			return "CONTINUE";
+			return Lib_ui_3ds_text("CONTINUE", "SEGUIR");
 		case LIB_VIEW_TAB_RECENT:
-			return "RECENT";
+			return Lib_ui_3ds_text("RECENT", "RECENTES");
 		case LIB_VIEW_TAB_FAVORITES:
-			return "FAVORITES";
+			return Lib_ui_3ds_text("FAVORITES", "FAVORITOS");
 		case LIB_VIEW_TAB_ALL:
 		default:
-			return "ALL";
+			return Lib_ui_3ds_text("ALL", "TODOS");
 	}
 }
 
 static const char* Lib_ui_3ds_sort_name(Lib_sort_key key)
 {
+	if (library_is_portuguese)
+	{
+		switch (key)
+		{
+			case LIB_SORT_KEY_DATE_ADDED:
+				return "DATA";
+			case LIB_SORT_KEY_LAST_PLAYED:
+				return "REPRODUZIDO";
+			case LIB_SORT_KEY_DURATION:
+				return "DURAÇÃO";
+			case LIB_SORT_KEY_SIZE:
+				return "TAMANHO";
+			case LIB_SORT_KEY_NAME:
+			default:
+				return "NOME";
+		}
+	}
 	switch (key)
 	{
 		case LIB_SORT_KEY_DATE_ADDED:
@@ -321,9 +662,9 @@ static void Lib_ui_3ds_format_tags(const Lib_item* item, char* out, size_t out_s
 	if (item->subtitle_tracks > 0)
 		snprintf(out + strlen(out), out_size - strlen(out), "[S:%u] ", (unsigned)item->subtitle_tracks);
 	if (item->flags & LIB_ITEM_FLAG_MISSING)
-		snprintf(out + strlen(out), out_size - strlen(out), "[MISSING]");
+		snprintf(out + strlen(out), out_size - strlen(out), library_is_portuguese ? "[AUSENTE]" : "[MISSING]");
 	else if (item->flags & LIB_ITEM_FLAG_UNSUPPORTED)
-		snprintf(out + strlen(out), out_size - strlen(out), "[UNSUPPORTED]");
+		snprintf(out + strlen(out), out_size - strlen(out), library_is_portuguese ? "[INCOMPAT.]" : "[UNSUPPORTED]");
 	else if (known)
 		snprintf(out + strlen(out), out_size - strlen(out), "[OK]");
 	else
@@ -550,6 +891,7 @@ static Lib_ui_3ds_thumb* Lib_ui_3ds_get_thumbnail(const Lib_item* item, bool* ma
 		memset(cache, 0, sizeof(*cache));
 		cache->id = item->id;
 		(void)Lib_ui_3ds_load_thumbnail(item, cache);
+		Lib_ui_3ds_request_redraw();
 	}
 	if (library_thumb_clock < UINT64_MAX)
 		library_thumb_clock++;
@@ -646,12 +988,93 @@ uint32_t text_color, bool* may_decode)
 	7, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_GRID_CELL_WIDTH - 65, 16);
 }
 
+static void Lib_ui_3ds_draw_button(const char* label, size_t slot, size_t count,
+float y, uint32_t text_color, bool selected)
+{
+	Draw_image_data background = Draw_get_empty_image();
+	float width = 320.0f / (float)count;
+	float x = width * (float)slot;
+	Draw_texture(&background, selected ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_MUTED,
+	x + 1, y, width - 2, LIB_UI_3DS_BUTTON_ROW_HEIGHT);
+	Draw_align_c(label, x + 2, y, UI_THEME_FONT_CAPTION,
+	selected ? UI_THEME_COLOR_SELECTED_TEXT : text_color, DRAW_X_ALIGN_CENTER,
+	DRAW_Y_ALIGN_CENTER, width - 4, LIB_UI_3DS_BUTTON_ROW_HEIGHT);
+}
+
+static void Lib_ui_3ds_draw_queue(const Lib_index* index, uint32_t text_color,
+bool* may_decode_thumbnail)
+{
+	char header[96] = { 0, };
+	uint64_t id = 0;
+	size_t count = Lib_ui_3ds_queue_count();
+	Lib_queue_mode mode = LIB_QUEUE_MODE_NO_REPEAT;
+	bool locked = Lib_ui_3ds_queue_lock();
+	if (locked && library_queue)
+		mode = Lib_queue_get_mode(library_queue);
+	Lib_ui_3ds_queue_unlock(locked);
+	snprintf(header, sizeof(header), "%s (%zu)",
+	Lib_ui_3ds_text("QUEUE", "FILA"), count);
+	Draw_with_crop_c(header, 4, 4, UI_THEME_FONT_BODY, text_color,
+	DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, 312, 16);
+
+	for (size_t row = 0; row < LIB_UI_3DS_ROWS; row++)
+	{
+		const Lib_item* item = NULL;
+		Lib_ui_3ds_thumb* thumb = NULL;
+		char tags[128] = { 0, };
+		float y = LIB_UI_3DS_LIST_ROW_Y + (row * LIB_UI_3DS_LIST_ROW_HEIGHT);
+		size_t position = library_queue_offset + row;
+		uint32_t row_color = text_color;
+		if (position >= count || !Lib_ui_3ds_queue_get(position, &id))
+			continue;
+		item = Lib_index_find_id_const(index, id);
+		if (!item)
+			continue;
+		if (position == library_queue_cursor)
+		{
+			Draw_image_data background = Draw_get_empty_image();
+			Draw_texture(&background, UI_THEME_COLOR_ACCENT, LIB_UI_3DS_LIST_ROW_X, y,
+			LIB_UI_3DS_LIST_ROW_WIDTH, LIB_UI_3DS_LIST_ROW_HEIGHT - 2);
+			row_color = UI_THEME_COLOR_SELECTED_TEXT;
+		}
+		thumb = Lib_ui_3ds_get_thumbnail(item, may_decode_thumbnail);
+		Lib_ui_3ds_draw_thumbnail(thumb, LIB_UI_3DS_LIST_ROW_X + 2, y + 2, 30, 20);
+		Draw_with_crop_c(Lib_item_get_title(item), LIB_UI_3DS_LIST_ROW_X + 36, y + 2,
+		UI_THEME_FONT_BODY, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
+		LIB_UI_3DS_LIST_ROW_WIDTH - 40, 10);
+		Lib_ui_3ds_format_tags(item, tags, sizeof(tags));
+		Draw_with_crop_c(tags, LIB_UI_3DS_LIST_ROW_X + 36, y + 13,
+		UI_THEME_FONT_CAPTION, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
+		LIB_UI_3DS_LIST_ROW_WIDTH - 40, 9);
+	}
+	if (count == 0)
+		Draw_align_c(Lib_ui_3ds_text("Queue is empty", "Fila vazia"), 4, 100,
+		UI_THEME_FONT_BODY, text_color, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 312, 24);
+
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("BACK", "VOLTAR"), 0, 4,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, false);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("REMOVE", "REMOVER"), 1, 4,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, false);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("CLEAR", "LIMPAR"), 2, 4,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, false);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("PLAY", "TOCAR"), 3, 4,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, false);
+
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("STOP", "PARAR"), 0, 4,
+	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, mode == LIB_QUEUE_MODE_NO_REPEAT);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("REPEAT", "REPETIR"), 1, 4,
+	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, mode == LIB_QUEUE_MODE_REPEAT);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("ORDER", "ORDEM"), 2, 4,
+	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, mode == LIB_QUEUE_MODE_IN_ORDER);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("RANDOM", "ALEATÓRIO"), 3, 4,
+	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, mode == LIB_QUEUE_MODE_RANDOM);
+}
+
 void Lib_ui_3ds_draw(const Lib_index* index, uint32_t text_color,
 uint32_t background_color)
 {
 	Draw_image_data background = Draw_get_empty_image();
 	char header[192] = { 0, };
-	char footer[128] = { 0, };
 	bool may_decode_thumbnail = true;
 
 	if (!library_ui_open || !index)
@@ -659,14 +1082,22 @@ uint32_t background_color)
 
 	Lib_ui_3ds_rebuild(index);
 	Draw_texture(&background, background_color, 0, 0, 320, 240);
-	snprintf(header, sizeof(header), "LIBRARY %s (%zu) %s SORT:%s%s%s",
+	if (library_queue_view)
+	{
+		Lib_ui_3ds_draw_queue(index, text_color, &may_decode_thumbnail);
+		return;
+	}
+	snprintf(header, sizeof(header), "%s %s (%zu) %s SORT:%s%s%s",
+	Lib_ui_3ds_text("LIBRARY", "BIBLIOTECA"),
 	Lib_ui_3ds_tab_name(library_ui.tab), library_ui.count,
-	library_ui.grid_mode ? "GRID" : "LIST", Lib_ui_3ds_sort_name(library_ui.sort.key),
-	library_ui.search[0] ? " Q:" : "", library_ui.search);
-	Draw_with_crop_c(header, 4, 4, 10, text_color, DRAW_X_ALIGN_LEFT,
+	library_ui.grid_mode ? Lib_ui_3ds_text("GRID", "GRADE") : Lib_ui_3ds_text("LIST", "LISTA"),
+	Lib_ui_3ds_sort_name(library_ui.sort.key), library_ui.search[0] ? " Q:" : "",
+	library_ui.search);
+	Draw_with_crop_c(header, 4, 4, UI_THEME_FONT_BODY, text_color, DRAW_X_ALIGN_LEFT,
 	DRAW_Y_ALIGN_TOP, 312, 16);
 
-	for (size_t slot = 0; slot < LIB_UI_3DS_VISIBLE_ITEMS; slot++)
+	for (size_t slot = 0; slot < (library_ui.grid_mode
+	? LIB_UI_3DS_GRID_VISIBLE_ITEMS : LIB_UI_3DS_ROWS); slot++)
 	{
 		if (library_ui.grid_mode)
 			Lib_ui_3ds_draw_grid_item(index, slot, text_color, &may_decode_thumbnail);
@@ -674,10 +1105,30 @@ uint32_t background_color)
 			Lib_ui_3ds_draw_list_item(index, slot, text_color, &may_decode_thumbnail);
 	}
 	if (library_ui.count == 0)
-		Draw_c(library_ui.search[0] ? "No matching titles" : "No videos in this view",
-		8, 112, 10, text_color);
+		Draw_align_c(library_ui.search[0] ? Lib_ui_3ds_text("No matching titles", "Nenhum resultado")
+		: Lib_ui_3ds_text("No videos in this view", "Nenhum vídeo nesta aba"),
+		4, 104, UI_THEME_FONT_BODY, text_color, DRAW_X_ALIGN_CENTER,
+		DRAW_Y_ALIGN_CENTER, 312, 24);
 
-	snprintf(footer, sizeof(footer), "A play  Y grid  X search  START clear  B close  L/R views  ZL/ZR sort");
-	Draw_with_crop_c(footer, 4, 220, 8, text_color, DRAW_X_ALIGN_LEFT,
-	DRAW_Y_ALIGN_TOP, 312, 12);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("CONT", "SEGUIR"), 0, 5,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.tab == LIB_VIEW_TAB_CONTINUE);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("RECENT", "RECENTES"), 1, 5,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.tab == LIB_VIEW_TAB_RECENT);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("ALL", "TODOS"), 2, 5,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.tab == LIB_VIEW_TAB_ALL);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("FAV", "FAVORITOS"), 3, 5,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.tab == LIB_VIEW_TAB_FAVORITES);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("QUEUE", "FILA"), 4, 5,
+	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, false);
+
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("ADD", "ADIC."), 0, 5,
+	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("PLAY", "TOCAR"), 1, 5,
+	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("SEARCH", "BUSCA"), 2, 5,
+	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("GRID", "GRADE"), 3, 5,
+	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, library_ui.grid_mode);
+	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("CLOSE", "FECHAR"), 4, 5,
+	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
 }

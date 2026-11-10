@@ -124,6 +124,9 @@
 #define HID_LANG_DE_SEL(k)					(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(sem_german_button, (k)))
 #define HID_LANG_DE_CFM(k)					(bool)((DEF_HID_PR_EM((k).touch, 1) || DEF_HID_HD((k).touch)) && DEF_HID_INIT_LAST_IN(sem_german_button, (k)))
 #define HID_LANG_DE_DESEL(k)				(bool)(DEF_HID_PHY_NP((k).touch))
+#define HID_LANG_PT_SEL(k)					(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(sem_portuguese_button, (k)))
+#define HID_LANG_PT_CFM(k)					(bool)((DEF_HID_PR_EM((k).touch, 1) || DEF_HID_HD((k).touch)) && DEF_HID_INIT_LAST_IN(sem_portuguese_button, (k)))
+#define HID_LANG_PT_DESEL(k)				(bool)(DEF_HID_PHY_NP((k).touch))
 //LCD: Night mode on.
 #define HID_LCD_NIGHT_ON_SEL(k)				(bool)(DEF_HID_PHY_PR((k).touch) && DEF_HID_INIT_IN(sem_night_mode_on_button, (k)))
 #define HID_LCD_NIGHT_ON_CFM(k)				(bool)((DEF_HID_PR_EM((k).touch, 1) || DEF_HID_HD((k).touch)) && DEF_HID_INIT_LAST_IN(sem_night_mode_on_button, (k)))
@@ -559,6 +562,7 @@ typedef enum
 	MSG_BATTERY_FULL,
 	MSG_BATTERY_REMAINING_CALCULATING,
 	MSG_LICENSE,
+	MSG_PORTUGUESE,
 
 	MSG_MAX,
 } Sem_msg;
@@ -780,7 +784,7 @@ static Sync_data sem_config_state_mutex = { 0, };
 static Thread sem_hw_config_thread = NULL;
 static Draw_image_data sem_back_button = { 0, }, sem_scroll_bar = { 0, }, sem_menu_button[MENU_MAX] = { 0, }, sem_english_button = { 0, },
 sem_japanese_button = { 0, }, sem_hungarian_button = { 0, }, sem_chinese_button = { 0, }, sem_italian_button = { 0, },
-sem_spanish_button = { 0, }, sem_romanian_button = { 0, }, sem_polish_button = { 0, }, sem_ryukyuan_button = { 0, }, sem_german_button = { 0, },
+sem_spanish_button = { 0, }, sem_romanian_button = { 0, }, sem_polish_button = { 0, }, sem_ryukyuan_button = { 0, }, sem_german_button = { 0, }, sem_portuguese_button = { 0, },
 sem_night_mode_on_button = { 0, }, sem_night_mode_off_button = { 0, }, sem_flash_mode_button = { 0, }, sem_screen_brightness_slider = { 0, },
 sem_screen_brightness_bar = { 0, }, sem_screen_off_time_slider = { 0, }, sem_screen_off_time_bar = { 0, }, sem_sleep_time_slider = { 0, },
 sem_sleep_time_bar = { 0, }, sem_800px_mode_button = { 0, }, sem_3d_mode_button = { 0, }, sem_400px_mode_button = { 0, },
@@ -905,6 +909,7 @@ static const Sem_language sem_languages[] =
 	{ .lang = "pl",		.msg = MSG_POLISH,		.button = &sem_polish_button,		},
 	{ .lang = "ryu",	.msg = MSG_RYUKYUAN,	.button = &sem_ryukyuan_button,		},
 	{ .lang = "de",		.msg = MSG_GERMAN,		.button = &sem_german_button,		},
+	{ .lang = "pt-br",	.msg = MSG_PORTUGUESE,	.button = &sem_portuguese_button,	},
 };
 static const Sem_select_2 sem_select_night_mode =
 {
@@ -1476,6 +1481,7 @@ void Sem_init(void)
 	Util_watch_add(WATCH_HANDLE_SETTINGS_MENU, &sem_polish_button.selected, sizeof(sem_polish_button.selected));
 	Util_watch_add(WATCH_HANDLE_SETTINGS_MENU, &sem_ryukyuan_button.selected, sizeof(sem_ryukyuan_button.selected));
 	Util_watch_add(WATCH_HANDLE_SETTINGS_MENU, &sem_german_button.selected, sizeof(sem_german_button.selected));
+	Util_watch_add(WATCH_HANDLE_SETTINGS_MENU, &sem_portuguese_button.selected, sizeof(sem_portuguese_button.selected));
 
 	//LCD.
 	Util_watch_add(WATCH_HANDLE_SETTINGS_MENU, &sem_config.is_night, sizeof(sem_config.is_night));
@@ -1605,6 +1611,7 @@ void Sem_draw_init(void)
 	sem_polish_button = Draw_get_empty_image();
 	sem_ryukyuan_button = Draw_get_empty_image();
 	sem_german_button = Draw_get_empty_image();
+	sem_portuguese_button = Draw_get_empty_image();
 	sem_night_mode_on_button = Draw_get_empty_image();
 	sem_night_mode_off_button = Draw_get_empty_image();
 	sem_flash_mode_button = Draw_get_empty_image();
@@ -1795,6 +1802,7 @@ void Sem_exit(void)
 	Util_watch_remove(WATCH_HANDLE_SETTINGS_MENU, &sem_polish_button.selected);
 	Util_watch_remove(WATCH_HANDLE_SETTINGS_MENU, &sem_ryukyuan_button.selected);
 	Util_watch_remove(WATCH_HANDLE_SETTINGS_MENU, &sem_german_button.selected);
+	Util_watch_remove(WATCH_HANDLE_SETTINGS_MENU, &sem_portuguese_button.selected);
 
 	//LCD.
 	Util_watch_remove(WATCH_HANDLE_SETTINGS_MENU, &sem_config.is_night);
@@ -2623,6 +2631,8 @@ void Sem_hid(const Hid_info* key)
 						sem_ryukyuan_button.selected = true;
 					if(HID_LANG_DE_SEL(*key))
 						sem_german_button.selected = true;
+					if(HID_LANG_PT_SEL(*key))
+						sem_portuguese_button.selected = true;
 				}
 			}
 			else if (sem_selected_menu_mode == MENU_LCD)
@@ -2871,6 +2881,12 @@ void Sem_hid(const Hid_info* key)
 						else if(HID_LANG_DE_CFM(*key))
 						{
 							snprintf(config.lang, sizeof(config.lang), "de");
+							Sem_set_config(&config);
+							sem_reload_msg_request = true;
+						}
+						else if(HID_LANG_PT_CFM(*key))
+						{
+							snprintf(config.lang, sizeof(config.lang), "pt-br");
 							Sem_set_config(&config);
 							sem_reload_msg_request = true;
 						}
@@ -3241,6 +3257,8 @@ void Sem_hid(const Hid_info* key)
 			sem_ryukyuan_button.selected = false;
 		if(HID_LANG_DE_DESEL(*key) || sem_scroll_mode)
 			sem_german_button.selected = false;
+		if(HID_LANG_PT_DESEL(*key) || sem_scroll_mode)
+			sem_portuguese_button.selected = false;
 		if(HID_LCD_NIGHT_ON_DESEL(*key) || sem_scroll_mode)
 			sem_night_mode_on_button.selected = false;
 		if(HID_LCD_NIGHT_OFF_DESEL(*key) || sem_scroll_mode)

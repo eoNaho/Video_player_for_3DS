@@ -20,7 +20,7 @@
 //Defines.
 #define LIB_LIBRARY_ROOT_MAX				(uint32_t)(1024)
 #define LIB_LIBRARY_PATH_MAX				(uint32_t)(1024)
-#define LIB_LIBRARY_IDLE_SLEEP_US			(uint64_t)(50000)
+#define LIB_LIBRARY_IDLE_SLEEP_US			(uint64_t)(250000)
 #define LIB_LIBRARY_PAUSE_SLEEP_US			(uint64_t)(100000)
 
 //Typedefs.

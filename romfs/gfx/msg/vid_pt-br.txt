@@ -1,0 +1,42 @@
+<0>Filtro de textura: </0>
+<1></1>
+<2>Permitir pular quadros: </2>
+<3>Configurações</3>
+<4>Selecionar arquivo</4>
+<5>Reproduzir/Pausar</5>
+<6>Parar</6>
+<7>Mover o vídeo</7>
+<8>Buscar posição</8>
+<9>Diminuir/aumentar zoom</9>
+<10>Seleção de faixa de áudio</10>
+<11>Selecionar faixa de áudio</11>
+<12>Pressione SELECT ou toque na tela para sair da tela cheia</12>
+<13>Usar decodificador por hardware (se disponível): </13>
+<14>Usar conversão de cor por hardware (se disponível): </14>
+<15>Usar decodificação multithread (se disponível): </15>
+<16>Permitir pular quadros-chave: </16>
+<17>Reduzir resolução do vídeo (se compatível): </17>
+<18>Buscando...</18>
+<19>Duração do salto: </19>
+<20>Volume: </20>
+<21>Corrigir proporção: </21>
+<22>Redimensionar/mover conteúdo: </22>
+<23>Lembrar posição do vídeo: </23>
+<24>Modo de reprodução: </24>
+<25>Sem repetição</25>
+<26>Repetir</26>
+<27>Em ordem</27>
+<28>Aleatório</28>
+<29>Desativar</29>
+<30>Vídeo e legenda</30>
+<31>Somente vídeo</31>
+<32>Somente legenda</32>
+<33>Seleção de legenda</33>
+<34>Selecionar legenda</34>
+<35>Brilho: </35>
+<36>Desativar áudio: </36>
+<37>Desativar vídeo: </37>
+<38>Desativar legenda: </38>
+<39>Limite para reiniciar a reprodução: %d</39>
+<40>Processando vídeo...</40>
+<41>Número de threads: %d</41>

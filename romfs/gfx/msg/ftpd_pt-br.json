@@ -1,0 +1,36 @@
+{
+	"address":
+	{
+		"lan": "Endereço da rede local: %s:%hu (%s %s)\n",
+		"lan_initializing": "Obtendo endereço da rede local...\n",
+		"lan_unknown": "Endereço da rede local desconhecido\nO modo passivo não funcionará pela rede local.\n",
+		"wan": "Endereço externo: %s:%hu (%s %s)\n",
+		"wan_initializing": "Obtendo endereço externo...\n",
+		"wan_unknown": "Endereço externo desconhecido\nO modo passivo não funcionará pela internet.\n"
+	},
+	"client_info":
+	{
+		"control_conn": "Controle: %s:%hu",
+		"current_dir": "Pasta: %s\n",
+		"data_conn": ", dados: %s:%hu (%s)\n",
+		"last_cmd": "Último comando: %s, argumento: %s\n",
+		"last_res": "Última resposta: %s",
+		"received": " (baixado: %s)\n",
+		"sent": " (enviado: %s)\n",
+		"title": "Conexões ativas (%hhu/%hhu):\n"
+	},
+	"config":
+	{
+		"allow": "Permitir",
+		"allow_when_no_control_conn": "Permitir (sem conexões de controle)",
+		"allow_when_no_data_conn": "Permitir (sem conexões de dados)",
+		"delete": "Excluir arquivos/pastas: %s",
+		"disallow": "Bloquear",
+		"hide": "Ocultar",
+		"read": "Ler arquivos: %s",
+		"rename": "Renomear arquivos/pastas: %s",
+		"show": "Mostrar",
+		"sleep": "Suspender: %s",
+		"write": "Gravar arquivos: %s"
+	}
+}

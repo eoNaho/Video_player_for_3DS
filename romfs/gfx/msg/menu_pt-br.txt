@@ -1,0 +1,11 @@
+<0>Deseja sair do aplicativo?</0>
+<1>A para fechar</1>
+<2>B para voltar</2>
+<3>☢Uma nova versão está disponível!☢</3>
+<4>Como atualizar:
+Configurações
+->Atualizações
+->Verificar atualizações
+->Selecionar versão
+->Escolher .3dsx ou .cia
+->Baixar e instalar</4>

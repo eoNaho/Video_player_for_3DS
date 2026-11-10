@@ -92,3 +92,4 @@ anumite funcții care nu merg)</62>
 <87>Fully charged</87>
 <88>Calculating remaining time...</88>
 <89>License</89>
+<90>Português (Brasil)</90>

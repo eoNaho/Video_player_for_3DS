@@ -1,7 +1,8 @@
 # Baseline de desempenho
 
-Preencher **no console real**, antes de mexer em UI ou indexação. Guardar uma cópia
-dos números no commit que introduzir cada otimização.
+Preencher **no console real** para quantificar UI, indexação e as otimizações de
+consumo. Os ajustes atuais ainda não têm medição comparativa; registrar os números
+antes de afirmar ganho de bateria ou fixar metas.
 
 ## Ambiente
 
@@ -17,15 +18,15 @@ dos números no commit que introduzir cada otimização.
 Do README: mpeg4 400×240@30 em MKV; H.264 256×144@24; H.264 800×240 (New 3DS, HW);
 um MP4 longo (teste de RAM); um MP3; um SBS 3D; um com legendas e múltiplas trilhas.
 
-| Vídeo | fps efetivo | frames descartados | decode/frame (ms) | "Processing video" (vezes/min) | RAM livre | RAM linear livre |
-| --- | --- | --- | --- | --- | --- | --- |
-| mpeg4 400×240@30 MKV | | | | | | |
-| H.264 256×144@24 | | | | | | |
-| H.264 800×240 | | | | | | |
-| MP4 longo | | | | | | |
-| MP3 | | | | | | |
-| SBS 3D | | | | | | |
-| Legendas + multi-trilha | | | | | | |
+| Vídeo | fps efetivo | frames descartados | decode/frame (ms) | "Processing video" (vezes/min) | RAM livre | RAM linear livre | bateria (%/30 min) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| mpeg4 400×240@30 MKV | | | | | | | |
+| H.264 256×144@24 | | | | | | | |
+| H.264 800×240 | | | | | | | |
+| MP4 longo | | | | | | | |
+| MP3 | | | | | | | |
+| SBS 3D | | | | | | | |
+| Legendas + multi-trilha | | | | | | | |
 
 ## Tempos de operação
 
@@ -38,11 +39,25 @@ um MP4 longo (teste de RAM); um MP3; um SBS 3D; um com legendas e múltiplas tri
 | Scan leve de 100 vídeos | | |
 | Probe de 1 vídeo | | |
 
+## Comparação de energia
+
+Fazer duas sessões de 30 minutos com a mesma carga de bateria, brilho, volume e
+arquivo; desligar Wi-Fi/FTP e anotar o modelo e a temperatura inicial. Comparar os
+perfis Auto e Economia durante reprodução e durante uma tela pausada. Registrar a
+queda percentual e qualquer diferença de fluidez, áudio ou quadros descartados.
+
+As otimizações já presentes no código são: limite de CPU de 10% em idle/pausa,
+limites de 40% (Old) / 50% (New) no perfil Economia e em bateria baixa no Auto,
+redesenho sob demanda da biblioteca, espera de VBlank em tela estática e pausa de
+250 ms entre tarefas ociosas da biblioteca. Esses valores descrevem a política do
+código; ainda não medem consumo real nem comprovam ganho de autonomia.
+
 ## Metas
 
 - Biblioteca abre sem tela de carregamento perceptível com índice em cache.
 - Playback sem queda de fps atribuível a UI/indexação.
-- Índice de ~1000 itens em 200–300 KB; cache de 16 miniaturas em ~250 KB.
+- Medir o índice de ~1000 itens e o cache atual de até 8 miniaturas sidecar; registrar
+  o uso de RAM/linear e a fluidez da UI com 0, 1 e 8 imagens visíveis antes de fixar metas.
 - Posição salva sobrevive a mover/renomear arquivos.
 
 ## Observações
