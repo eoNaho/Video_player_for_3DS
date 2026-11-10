@@ -22,8 +22,10 @@ segundo plano (scan, probe, miniaturas) cede CPU ao player.
   identidade no `Makefile`/SMDH, telemetria desligada, flags de recursos não usados,
   template de baseline em [`BASELINE.md`](BASELINE.md) (medição ainda pendente no console).
 - **Fase 1 — Biblioteca MVP:** núcleo portável concluído (`lib_index`, `lib_name`,
-  `lib_queue` + testes no PC). Faltam scan/probe, migração de `saved_pos` no console
-  e integração com `video_player.c`; abas Todos/Continuar assistindo e fila com os 4 modos.
+  `lib_queue`, `lib_scan`, `lib_sort`, `lib_view`, `lib_migrate`, `lib_thumb` + testes no PC),
+  com adaptadores 3DS de varredura (`lib_scan_3ds`), armazenamento (`lib_store_3ds`) e
+  migração de `saved_pos` (`lib_migrate_3ds`). Faltam probe, integração com
+  `video_player.c`, abas Todos/Continuar assistindo e fila com os 4 modos.
 - **Fase 2 — Metadados e miniaturas:** probe em segundo plano com pausa no playback,
   miniaturas sidecar, grade, etiqueta de compatibilidade.
 - **Fase 3 — Player e configurações:** tokens de design, alvos de toque ≥ 24 px,
@@ -34,9 +36,10 @@ segundo plano (scan, probe, miniaturas) cede CPU ao player.
 ## Integração
 
 Novos módulos em `source/library/` (adicionar ao `SOURCES`):
-`lib_index.c`, `lib_scan.c`, `lib_thumb.c`, `lib_queue.c`, `lib_ui.c`.
-A lógica pura (índice, hash, parser de nomes, fila, ordenação) deve compilar no PC
-com `gcc` para testes unitários.
+`lib_index.c`, `lib_scan.c`, `lib_scan_3ds.c`, `lib_sort.c`, `lib_view.c`,
+`lib_migrate.c`, `lib_migrate_3ds.c`, `lib_store_3ds.c`, `lib_thumb.c`,
+`lib_ui.c`. A lógica pura (índice, hash, parser de nomes, fila, ordenação,
+varredura/diff, abas, migração) deve compilar no PC com `gcc` para testes unitários.
 
 Pontos de contato em `source/video_player.c`: `Vid_expl_callback`,
 `DECODE_THREAD_PLAY_NEXT_REQUEST`, `Vid_hid`, chamada de `Util_expl_draw()`,
@@ -59,6 +62,7 @@ make -C tests run
 ```
 
 Cobre hash de id, parser de título/temporada/episódio/ano, migração do nome de
-`saved_pos`, formato binário do índice (round-trip, checksum, versão) e os modos
-da fila (incluindo baralho sem repetição).
+`saved_pos`, formato binário do índice (round-trip, checksum, versão), diff de
+varredura (renome/carência), ordenação natural, abas da biblioteca, posições
+legadas e nomes de miniatura, além dos modos da fila (incluindo baralho sem repetição).
 

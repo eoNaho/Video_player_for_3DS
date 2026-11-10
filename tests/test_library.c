@@ -1,6 +1,11 @@
 #include "library/lib_index.h"
 #include "library/lib_name.h"
+#include "library/lib_scan.h"
+#include "library/lib_sort.h"
+#include "library/lib_view.h"
 #include "library/lib_queue.h"
+#include "library/lib_migrate.h"
+#include "library/lib_thumb.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -109,6 +114,7 @@ static void Test_index_roundtrip(void)
 	item->flags |= LIB_ITEM_FLAG_3D;
 	item->play_count = 4;
 	item->last_played = 222;
+	item->first_seen = 444;
 	Lib_item_update_progress(item, 55000);
 	CHECK(Lib_item_is_watched(item));
 
@@ -119,7 +125,7 @@ static void Test_index_roundtrip(void)
 	CHECK(!Lib_item_is_watched(item));
 
 	CHECK(Lib_index_save(&index, &data, &size) == LIB_INDEX_OK);
-	CHECK(data != NULL && size == 32 + 2 * 64 + strlen("sdmc:/videos/a.mkv") + 1 + strlen("a") + 1
+	CHECK(data != NULL && size == 32 + 2 * 72 + strlen("sdmc:/videos/a.mkv") + 1 + strlen("a") + 1
 	+ strlen("sdmc:/other/b.mkv") + 1 + strlen("Custom Title") + 1);
 
 	CHECK(Lib_index_load(&loaded, data, size) == LIB_INDEX_OK);
@@ -138,6 +144,8 @@ static void Test_index_roundtrip(void)
 	CHECK(item && (item->flags & LIB_ITEM_FLAG_3D) != 0);
 	CHECK(item && (item->flags & LIB_ITEM_FLAG_WATCHED) != 0);
 	CHECK(item && item->play_count == 4 && item->last_played == 222);
+	CHECK(item && item->first_seen == 444);
+	CHECK(item && item->missing_since == 0);
 	CHECK(item && strcmp(item->path, "sdmc:/videos/a.mkv") == 0);
 	CHECK(item && strcmp(Lib_item_get_title(item), "a") == 0);
 
@@ -344,6 +352,296 @@ static void Test_queue_edit(void)
 	Lib_queue_free(&queue);
 }
 
+static void Test_scan(void)
+{
+	Lib_index index = { 0, };
+	Lib_scan_files files = { 0, };
+	Lib_scan_stats stats = { 0, };
+	Lib_item* item = NULL;
+
+	CHECK(Lib_scan_classify("a.MKV") == LIB_SCAN_KIND_VIDEO);
+	CHECK(Lib_scan_classify("a.mp3") == LIB_SCAN_KIND_AUDIO);
+	CHECK(Lib_scan_classify("a.jpg") == LIB_SCAN_KIND_OTHER);
+	CHECK(Lib_scan_classify("no_extension") == LIB_SCAN_KIND_OTHER);
+	CHECK(Lib_scan_classify(NULL) == LIB_SCAN_KIND_OTHER);
+	CHECK(!Lib_scan_is_supported("a.jpg"));
+	CHECK(Lib_scan_is_supported("a.webm"));
+
+	Lib_index_init(&index);
+	Lib_scan_files_init(&files);
+	CHECK(Lib_scan_files_add(&files, "/videos/a.mkv", 1000, 0, LIB_SCAN_KIND_VIDEO));
+	CHECK(Lib_scan_files_add(&files, "/videos/b.mp3", 2000, 0, LIB_SCAN_KIND_AUDIO));
+	CHECK(Lib_scan_apply(&index, &files, 1000, 0, &stats));
+	CHECK(stats.added == 2 && stats.updated == 0 && stats.unchanged == 0);
+	CHECK(index.count == 2);
+
+	item = Lib_index_find_path(&index, "/videos/a.mkv");
+	CHECK(item != NULL);
+	CHECK(item && item->first_seen == 1000);
+	CHECK(item && (item->flags & LIB_ITEM_FLAG_AUDIO_ONLY) == 0);
+	CHECK(item && strcmp(Lib_item_get_title(item), "a") == 0);
+	if (item)
+	{
+		item->duration_ms = 60000;
+		Lib_item_update_progress(item, 30000);
+		item->last_played = 1001;
+	}
+	item = Lib_index_find_path(&index, "/videos/b.mp3");
+	CHECK(item != NULL);
+	CHECK(item && (item->flags & LIB_ITEM_FLAG_AUDIO_ONLY) != 0);
+
+	//Second identical scan.
+	Lib_scan_files_free(&files);
+	Lib_scan_files_init(&files);
+	CHECK(Lib_scan_files_add(&files, "/videos/a.mkv", 1000, 0, LIB_SCAN_KIND_VIDEO));
+	CHECK(Lib_scan_files_add(&files, "/videos/b.mp3", 2000, 0, LIB_SCAN_KIND_AUDIO));
+	CHECK(Lib_scan_apply(&index, &files, 1100, 0, &stats));
+	CHECK(stats.added == 0 && stats.unchanged == 2 && stats.updated == 0);
+
+	//a.mkv disappears: mark missing, keep history.
+	Lib_scan_files_free(&files);
+	Lib_scan_files_init(&files);
+	CHECK(Lib_scan_files_add(&files, "/videos/b.mp3", 2000, 0, LIB_SCAN_KIND_AUDIO));
+	CHECK(Lib_scan_apply(&index, &files, 2000, 0, &stats));
+	CHECK(stats.marked_missing == 1);
+	item = Lib_index_find_path(&index, "/videos/a.mkv");
+	CHECK(item && (item->flags & LIB_ITEM_FLAG_MISSING) != 0);
+	CHECK(item && item->missing_since == 2000);
+	CHECK(item && item->position_ms == 30000);
+
+	//Rename: same directory and size keeps history.
+	Lib_scan_files_free(&files);
+	Lib_scan_files_init(&files);
+	CHECK(Lib_scan_files_add(&files, "/videos/a2.mkv", 1000, 0, LIB_SCAN_KIND_VIDEO));
+	CHECK(Lib_scan_files_add(&files, "/videos/b.mp3", 2000, 0, LIB_SCAN_KIND_AUDIO));
+	CHECK(Lib_scan_apply(&index, &files, 2100, 0, &stats));
+	CHECK(stats.renamed == 1 && stats.added == 0);
+	CHECK(index.count == 2);
+	CHECK(Lib_index_find_path(&index, "/videos/a.mkv") == NULL);
+	item = Lib_index_find_path(&index, "/videos/a2.mkv");
+	CHECK(item != NULL);
+	CHECK(item && item->id == Lib_index_hash_id("a2.mkv", 1000));
+	CHECK(item && item->position_ms == 30000);
+	CHECK(item && (item->flags & LIB_ITEM_FLAG_MISSING) == 0);
+
+	//Missing beyond the grace period is removed.
+	Lib_scan_files_free(&files);
+	Lib_scan_files_init(&files);
+	CHECK(Lib_scan_files_add(&files, "/videos/b.mp3", 2000, 0, LIB_SCAN_KIND_AUDIO));
+	CHECK(Lib_scan_apply(&index, &files, 3000, 0, &stats));
+	CHECK(stats.marked_missing == 1);
+	CHECK(Lib_scan_apply(&index, &files, 3011, 10, &stats));
+	CHECK(stats.removed == 1);
+	CHECK(index.count == 1);
+	CHECK(Lib_index_find_path(&index, "/videos/a2.mkv") == NULL);
+
+	Lib_scan_files_free(&files);
+	Lib_index_free(&index);
+}
+
+static void Test_sort(void)
+{
+	Lib_index index = { 0, };
+	Lib_sort_spec spec = { LIB_SORT_KEY_NAME, false };
+
+	CHECK(Lib_sort_natural_compare("S01E2", "S01E10") < 0);
+	CHECK(Lib_sort_natural_compare("s01e2", "S01E2") == 0);
+	CHECK(Lib_sort_natural_compare("Episode 1", "episode 2") < 0);
+	CHECK(Lib_sort_natural_compare("a", "a") == 0);
+	CHECK(Lib_sort_natural_compare("a10", "a9") > 0);
+	CHECK(Lib_sort_natural_compare("a007", "a7") == 0);
+
+	Lib_index_init(&index);
+	CHECK(Lib_index_upsert(&index, "/x/S01E1.mkv", 100, 0, 1) != NULL);
+	CHECK(Lib_index_upsert(&index, "/x/S01E2.mkv", 200, 0, 2) != NULL);
+	CHECK(Lib_index_upsert(&index, "/x/S01E10.mkv", 300, 0, 3) != NULL);
+	CHECK(Lib_item_set_title(&index.items[0], "Episode 1"));
+	CHECK(Lib_item_set_title(&index.items[1], "Episode 2"));
+	CHECK(Lib_item_set_title(&index.items[2], "Episode 10"));
+
+	CHECK(Lib_sort_items(index.items, index.count, &spec));
+	CHECK(strcmp(Lib_item_get_title(&index.items[0]), "Episode 1") == 0);
+	CHECK(strcmp(Lib_item_get_title(&index.items[1]), "Episode 2") == 0);
+	CHECK(strcmp(Lib_item_get_title(&index.items[2]), "Episode 10") == 0);
+
+	spec.descending = true;
+	CHECK(Lib_sort_items(index.items, index.count, &spec));
+	CHECK(strcmp(Lib_item_get_title(&index.items[0]), "Episode 10") == 0);
+	CHECK(strcmp(Lib_item_get_title(&index.items[2]), "Episode 1") == 0);
+
+	Lib_index_free(&index);
+}
+
+static void Test_view(void)
+{
+	Lib_index index = { 0, };
+	Lib_item* a = NULL;
+	Lib_item* b = NULL;
+	Lib_item* c = NULL;
+	Lib_item* d = NULL;
+	Lib_item* e = NULL;
+	uint64_t ids[8] = { 0, };
+	size_t count = 0;
+
+	Lib_index_init(&index);
+	CHECK(Lib_index_upsert(&index, "/v/a.mkv", 1, 0, 1) != NULL);
+	CHECK(Lib_index_upsert(&index, "/v/b.mkv", 2, 0, 2) != NULL);
+	CHECK(Lib_index_upsert(&index, "/v/c.mkv", 3, 0, 3) != NULL);
+	CHECK(Lib_index_upsert(&index, "/v/d.mkv", 4, 0, 4) != NULL);
+	CHECK(Lib_index_upsert(&index, "/v/e.mkv", 5, 0, 5) != NULL);
+	if (index.count != 5)
+	{
+		Lib_index_free(&index);
+		return;
+	}
+	a = &index.items[0];
+	b = &index.items[1];
+	c = &index.items[2];
+	d = &index.items[3];
+	e = &index.items[4];
+	CHECK(a && b && c && d && e);
+
+	a->duration_ms = 100000;
+	Lib_item_update_progress(a, 5000);
+	a->last_played = 100;
+	b->duration_ms = 100000;
+	Lib_item_update_progress(b, 95000);
+	b->last_played = 200;
+	c->last_played = 300;
+	d->flags |= LIB_ITEM_FLAG_FAVORITE;
+	e->duration_ms = 100000;
+	Lib_item_update_progress(e, 1000);
+	e->last_played = 400;
+	e->flags |= LIB_ITEM_FLAG_MISSING;
+
+	CHECK(Lib_view_build(&index, LIB_VIEW_TAB_CONTINUE, NULL, ids, 8, &count));
+	CHECK(count == 1 && ids[0] == a->id);
+
+	CHECK(Lib_view_build(&index, LIB_VIEW_TAB_RECENT, NULL, ids, 8, &count));
+	CHECK(count == 3);
+	CHECK(count == 3 && ids[0] == c->id && ids[1] == b->id && ids[2] == a->id);
+
+	CHECK(Lib_view_build(&index, LIB_VIEW_TAB_FAVORITES, NULL, ids, 8, &count));
+	CHECK(count == 1 && ids[0] == d->id);
+
+	CHECK(Lib_view_build(&index, LIB_VIEW_TAB_ALL, NULL, ids, 8, &count));
+	CHECK(count == 5);
+
+	CHECK(Lib_view_build(&index, LIB_VIEW_TAB_CONTINUE, NULL, ids, 1, &count));
+	CHECK(count == 1);
+
+	CHECK(Lib_view_build(&index, LIB_VIEW_TAB_CONTINUE, NULL, NULL, 0, &count));
+	CHECK(count == 1);
+
+	Lib_index_free(&index);
+}
+
+typedef struct
+{
+	const char* name;
+	uint64_t position_ms;
+} Test_saved_pos;
+
+static bool Test_migrate_read(const char* old_name, uint64_t* position_ms, void* userdata)
+{
+	const Test_saved_pos* table = (const Test_saved_pos*)userdata;
+
+	if (!old_name || !position_ms || !table)
+		return false;
+
+	for (size_t i = 0; table[i].name; i++)
+	{
+		if (strcmp(table[i].name, old_name) == 0)
+		{
+			*position_ms = table[i].position_ms;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static void Test_migrate(void)
+{
+	static Test_saved_pos positions[] =
+	{
+		{ "_videos_a.mkv", 12345 },
+		{ "_videos_b.mkv", 777 },
+		{ "_videos_c.mkv", 5000000000ULL },
+		{ NULL, 0 },
+	};
+	Lib_index index = { 0, };
+	Lib_migrate_stats stats = { 0, };
+	Lib_item* a = NULL;
+	Lib_item* b = NULL;
+	Lib_item* c = NULL;
+
+	Lib_index_init(&index);
+	CHECK(Lib_index_upsert(&index, "/videos/a.mkv", 10, 0, 1) != NULL);
+	CHECK(Lib_index_upsert(&index, "/videos/b.mkv", 20, 0, 2) != NULL);
+	CHECK(Lib_index_upsert(&index, "/videos/c.mkv", 30, 0, 3) != NULL);
+	if (index.count != 3)
+	{
+		Lib_index_free(&index);
+		return;
+	}
+
+	a = &index.items[0];
+	b = &index.items[1];
+	c = &index.items[2];
+	b->position_ms = 5000;
+	b->duration_ms = 60000;
+
+	CHECK(Lib_migrate_saved_pos(&index, Test_migrate_read, (void*)positions, &stats));
+	CHECK(stats.items_seen == 3);
+	CHECK(stats.migrated == 2);
+	CHECK(stats.already_known == 1);
+	CHECK(stats.not_found == 0);
+	CHECK(a->position_ms == 12345);
+	CHECK(b->position_ms == 5000);
+	CHECK(c->position_ms == UINT32_MAX);
+	CHECK(b->duration_ms == 60000);
+	CHECK(a->last_played == 0);
+
+	CHECK(!Lib_migrate_saved_pos(NULL, Test_migrate_read, (void*)positions, &stats));
+	CHECK(!Lib_migrate_saved_pos(&index, NULL, NULL, &stats));
+
+	Lib_index_free(&index);
+}
+
+static void Test_thumb(void)
+{
+	char name[64] = { 0, };
+
+	CHECK(Lib_thumb_directory_length("/videos/a.mkv") == 7);
+	CHECK(Lib_thumb_directory_length("/a.mkv") == 1);
+	CHECK(Lib_thumb_directory_length("a.mkv") == 0);
+	CHECK(Lib_thumb_directory_length(NULL) == 0);
+
+	CHECK(Lib_thumb_sidecar_path("/videos/a.mkv", name, sizeof(name)));
+	CHECK(strcmp(name, "/videos/a.mkv.jpg") == 0);
+	CHECK(Lib_thumb_sidecar_path("a.mkv", name, sizeof(name)));
+	CHECK(strcmp(name, "a.mkv.jpg") == 0);
+	CHECK(!Lib_thumb_sidecar_path("/videos/a.mkv", name, 12));
+	CHECK(name[0] == 0x00);
+
+	CHECK(Lib_thumb_fallback_path("/videos/a.mkv", "poster.jpg", name, sizeof(name)));
+	CHECK(strcmp(name, "/videos/poster.jpg") == 0);
+	CHECK(Lib_thumb_fallback_path("/a.mkv", "poster.jpg", name, sizeof(name)));
+	CHECK(strcmp(name, "/poster.jpg") == 0);
+	CHECK(Lib_thumb_fallback_path("a.mkv", "folder.jpg", name, sizeof(name)));
+	CHECK(strcmp(name, "folder.jpg") == 0);
+	CHECK(!Lib_thumb_fallback_path("/videos/a.mkv", "poster.jpg", name, 18));
+	CHECK(name[0] == 0x00);
+
+	CHECK(Lib_thumb_is_image("poster.jpg"));
+	CHECK(Lib_thumb_is_image("POSTER.JPG"));
+	CHECK(Lib_thumb_is_image("folder.jpeg"));
+	CHECK(!Lib_thumb_is_image("poster.jpg.txt"));
+	CHECK(!Lib_thumb_is_image("poster.png"));
+	CHECK(!Lib_thumb_is_image(NULL));
+}
+
 int main(void)
 {
 	Test_hash();
@@ -356,6 +654,11 @@ int main(void)
 	Test_queue_modes();
 	Test_queue_random();
 	Test_queue_edit();
+	Test_scan();
+	Test_sort();
+	Test_view();
+	Test_migrate();
+	Test_thumb();
 
 	if (tests_failed != 0)
 	{

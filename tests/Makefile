@@ -6,11 +6,21 @@ CFLAGS ?= -std=c99 -O1 -g -Wall -Wextra -Wpedantic -Wshadow -Wcast-qual -Wwrite-
 SOURCES := test_library.c \
 	../source/library/lib_index.c \
 	../source/library/lib_name.c \
-	../source/library/lib_queue.c
+	../source/library/lib_queue.c \
+	../source/library/lib_scan.c \
+	../source/library/lib_sort.c \
+	../source/library/lib_view.c \
+	../source/library/lib_migrate.c \
+	../source/library/lib_thumb.c
 
 HEADERS := ../include/library/lib_index.h \
 	../include/library/lib_name.h \
-	../include/library/lib_queue.h
+	../include/library/lib_queue.h \
+	../include/library/lib_scan.h \
+	../include/library/lib_sort.h \
+	../include/library/lib_view.h \
+	../include/library/lib_migrate.h \
+	../include/library/lib_thumb.h
 
 .PHONY: all run clean
 

@@ -273,6 +273,26 @@ bool Lib_item_set_title(Lib_item* item, const char* title)
 	return Lib_index_set_string(&item->title, title);
 }
 
+bool Lib_item_set_path(Lib_item* item, const char* path)
+{
+	char title[256] = { 0, };
+
+	if (!item || !path)
+		return false;
+
+	if (!Lib_index_set_string(&item->path, path))
+		return false;
+
+	if (!item->title || item->title[0] == 0x00)
+	{
+		Lib_name_parse(path, title, sizeof(title), NULL, NULL, NULL);
+		if (!Lib_index_set_string(&item->title, title))
+			return false;
+	}
+
+	return true;
+}
+
 const char* Lib_item_get_title(const Lib_item* item)
 {
 	if (!item)
@@ -384,13 +404,15 @@ Lib_index_result Lib_index_save(const Lib_index* index, uint8_t** data, size_t* 
 		Lib_index_write_u32(record + 36, item->position_ms);
 		Lib_index_write_u32(record + 40, item->last_played);
 		Lib_index_write_u32(record + 44, item->play_count);
-		Lib_index_write_u16(record + 48, item->width);
-		Lib_index_write_u16(record + 50, item->height);
-		Lib_index_write_u16(record + 52, item->fps_x100);
-		record[54] = item->video_codec;
-		record[55] = item->audio_tracks;
-		record[56] = item->subtitle_tracks;
-		record[57] = item->flags;
+		Lib_index_write_u32(record + 48, item->first_seen);
+		Lib_index_write_u32(record + 52, item->missing_since);
+		Lib_index_write_u16(record + 56, item->width);
+		Lib_index_write_u16(record + 58, item->height);
+		Lib_index_write_u16(record + 60, item->fps_x100);
+		record[62] = item->video_codec;
+		record[63] = item->audio_tracks;
+		record[64] = item->subtitle_tracks;
+		record[65] = item->flags;
 	}
 
 	checksum = Lib_index_checksum(records, (index->count * LIB_INDEX_RECORD_SIZE) + string_bytes);
@@ -488,13 +510,15 @@ Lib_index_result Lib_index_load(Lib_index* index, const uint8_t* data, size_t si
 		item->position_ms = Lib_index_read_u32(record + 36);
 		item->last_played = Lib_index_read_u32(record + 40);
 		item->play_count = Lib_index_read_u32(record + 44);
-		item->width = Lib_index_read_u16(record + 48);
-		item->height = Lib_index_read_u16(record + 50);
-		item->fps_x100 = Lib_index_read_u16(record + 52);
-		item->video_codec = record[54];
-		item->audio_tracks = record[55];
-		item->subtitle_tracks = record[56];
-		item->flags = record[57];
+		item->first_seen = Lib_index_read_u32(record + 48);
+		item->missing_since = Lib_index_read_u32(record + 52);
+		item->width = Lib_index_read_u16(record + 56);
+		item->height = Lib_index_read_u16(record + 58);
+		item->fps_x100 = Lib_index_read_u16(record + 60);
+		item->video_codec = record[62];
+		item->audio_tracks = record[63];
+		item->subtitle_tracks = record[64];
+		item->flags = record[65];
 
 		if (!Lib_index_set_string(&item->path, path))
 			goto Lib_index_load_failed;

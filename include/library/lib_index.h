@@ -7,7 +7,7 @@
 //On-disk format version. Bump only with a compatible loader path.
 #define LIB_INDEX_VERSION					(uint16_t)(1)
 #define LIB_INDEX_HEADER_SIZE				(uint32_t)(32)
-#define LIB_INDEX_RECORD_SIZE				(uint32_t)(64)
+#define LIB_INDEX_RECORD_SIZE				(uint32_t)(72)
 #define LIB_INDEX_MAX_ITEMS					(uint32_t)(1000000)
 
 typedef uint8_t Lib_item_flags;
@@ -42,6 +42,8 @@ typedef struct
 	uint32_t position_ms;
 	uint32_t last_played;				//Unix seconds, 0 = never.
 	uint32_t play_count;
+	uint32_t first_seen;				//Unix seconds when the item was indexed, 0 = unknown.
+	uint32_t missing_since;				//Unix seconds when the file went missing, 0 = present.
 	uint16_t width;
 	uint16_t height;
 	uint16_t fps_x100;
@@ -65,6 +67,7 @@ typedef enum
 	LIB_INDEX_ERR_NOMEM,				//Allocation failure.
 	LIB_INDEX_ERR_CORRUPT,				//Bad magic/size/checksum/string.
 	LIB_INDEX_ERR_VERSION,				//Unsupported format version.
+	LIB_INDEX_ERR_IO,					//File could not be read/written.
 } Lib_index_result;
 
 //FNV-1a 64-bit over the basename and the little-endian file size.
@@ -97,6 +100,8 @@ Lib_index_result Lib_index_save(const Lib_index* index, uint8_t** data, size_t* 
 const char* Lib_item_get_title(const Lib_item* item);
 
 bool Lib_item_set_title(Lib_item* item, const char* title);
+
+bool Lib_item_set_path(Lib_item* item, const char* path);
 
 bool Lib_item_is_watched(const Lib_item* item);
 
