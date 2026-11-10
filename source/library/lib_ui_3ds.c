@@ -6,6 +6,8 @@
 
 #include "library/lib_library_3ds.h"
 #include "library/lib_name.h"
+#include "library/lib_scan.h"
+#include "library/lib_sort.h"
 #include "library/lib_thumb.h"
 #include "library/lib_ui.h"
 #include "system/draw/draw.h"
@@ -63,6 +65,8 @@ static size_t library_queue_cursor = 0;
 static size_t library_queue_offset = 0;
 static bool library_is_portuguese = false;
 static Lib_ui_3ds_queue_change_callback library_queue_change_callback = NULL;
+
+static bool Lib_ui_3ds_same_title(const char* a, const char* b);
 
 #define LIB_UI_3DS_COLOR_BACKGROUND	(library_ui_dark_theme ? UI_THEME_COLOR_BACKGROUND : UI_THEME_COLOR_LIGHT_BACKGROUND)
 #define LIB_UI_3DS_COLOR_SURFACE		(library_ui_dark_theme ? UI_THEME_COLOR_SURFACE : UI_THEME_COLOR_LIGHT_SURFACE)
@@ -260,17 +264,102 @@ static bool Lib_ui_3ds_queue_get(size_t position, uint64_t* id)
 	return found;
 }
 
+static int Lib_ui_3ds_episode_ptr_compare(const void* left, const void* right)
+{
+	const Lib_item* a = *(const Lib_item* const*)left;
+	const Lib_item* b = *(const Lib_item* const*)right;
+	char title_a[256] = { 0, };
+	char title_b[256] = { 0, };
+	Lib_name_info info_a = { -1, -1, -1, false, false };
+	Lib_name_info info_b = { -1, -1, -1, false, false };
+	if (!a || !b)
+		return a ? -1 : (b ? 1 : 0);
+	(void)Lib_name_parse_info(a->path, title_a, sizeof(title_a), NULL, 0, &info_a);
+	(void)Lib_name_parse_info(b->path, title_b, sizeof(title_b), NULL, 0, &info_b);
+	if (info_a.season != info_b.season)
+		return (info_a.season < info_b.season) ? -1 : 1;
+	if (info_a.episode_known != info_b.episode_known)
+		return info_a.episode_known ? -1 : 1;
+	if (info_a.episode_known && info_a.episode != info_b.episode)
+		return (info_a.episode < info_b.episode) ? -1 : 1;
+	return Lib_sort_natural_compare(a->path, b->path);
+}
+
 static void Lib_ui_3ds_queue_add_current(const Lib_index* index)
 {
 	const Lib_item* item = Lib_ui_current(&library_ui, index);
+	const Lib_item** group_items = NULL;
+	char group_title[256] = { 0, };
+	Lib_name_info selected_info = { -1, -1, -1, false, false };
+	size_t group_count = 0;
+	bool add_group = (bool)(item && library_ui.filter == LIB_UI_FILTER_SERIES
+	&& library_ui.level != LIB_UI_LEVEL_EPISODES
+	&& Lib_name_parse_info(item->path, group_title, sizeof(group_title), NULL, 0, &selected_info)
+	&& selected_info.is_series);
+	bool changed = false;
+	if (add_group)
+	{
+		for (size_t i = 0; i < index->count; i++)
+		{
+			char title[256] = { 0, };
+			Lib_name_info info = { -1, -1, -1, false, false };
+			const Lib_item* candidate = &index->items[i];
+			if (!candidate->path || (candidate->flags & (LIB_ITEM_FLAG_MISSING
+			| LIB_ITEM_FLAG_UNSUPPORTED | LIB_ITEM_FLAG_AUDIO_ONLY))
+			|| Lib_scan_classify(candidate->path) != LIB_SCAN_KIND_VIDEO
+			|| !Lib_name_parse_info(candidate->path, title, sizeof(title), NULL, 0, &info)
+			|| !info.is_series || !Lib_ui_3ds_same_title(group_title, title)
+			|| (library_ui.level == LIB_UI_LEVEL_SEASONS
+			&& (info.season > 0 ? info.season : 1) != library_ui.group_season))
+				continue;
+			group_count++;
+		}
+		if (group_count > 0 && group_count <= SIZE_MAX / sizeof(*group_items))
+		{
+			group_items = (const Lib_item**)malloc(group_count * sizeof(*group_items));
+			if (group_items)
+			{
+				size_t written = 0;
+				for (size_t i = 0; i < index->count && written < group_count; i++)
+				{
+					char title[256] = { 0, };
+					Lib_name_info info = { -1, -1, -1, false, false };
+					const Lib_item* candidate = &index->items[i];
+					if (!candidate->path || (candidate->flags & (LIB_ITEM_FLAG_MISSING
+					| LIB_ITEM_FLAG_UNSUPPORTED | LIB_ITEM_FLAG_AUDIO_ONLY))
+					|| Lib_scan_classify(candidate->path) != LIB_SCAN_KIND_VIDEO
+					|| !Lib_name_parse_info(candidate->path, title, sizeof(title), NULL, 0, &info)
+					|| !info.is_series || !Lib_ui_3ds_same_title(group_title, title)
+					|| (library_ui.level == LIB_UI_LEVEL_SEASONS
+					&& (info.season > 0 ? info.season : 1) != library_ui.group_season))
+						continue;
+					group_items[written++] = candidate;
+				}
+				group_count = written;
+				qsort(group_items, group_count, sizeof(*group_items), Lib_ui_3ds_episode_ptr_compare);
+			}
+		}
+	}
 	bool locked = Lib_ui_3ds_queue_lock();
-	if (locked && library_queue && item)
+	if (locked && library_queue && group_items)
+	{
+		for (size_t i = 0; i < group_count; i++)
+		{
+			uint64_t id = group_items[i]->id;
+			if (!Lib_queue_contains(library_queue, id) && Lib_queue_add(library_queue, id))
+				changed = true;
+		}
+	}
+	else if (locked && library_queue && item)
 	{
 		bool was_present = Lib_queue_contains(library_queue, item->id);
 		if (!was_present && Lib_queue_add(library_queue, item->id) && library_queue_change_callback)
-			library_queue_change_callback();
+			changed = true;
 	}
 	Lib_ui_3ds_queue_unlock(locked);
+	free(group_items);
+	if (changed && library_queue_change_callback)
+		library_queue_change_callback();
 	Lib_ui_3ds_request_redraw();
 }
 
@@ -345,6 +434,13 @@ static void Lib_ui_3ds_queue_set_mode(Lib_queue_mode mode)
 static void Lib_ui_3ds_play_browser_current(const Lib_index* index,
 Lib_ui_3ds_play_callback play_callback)
 {
+	if (library_ui.filter == LIB_UI_FILTER_SERIES
+	&& library_ui.level != LIB_UI_LEVEL_EPISODES)
+	{
+		if (Lib_ui_enter(&library_ui, index))
+			Lib_ui_3ds_request_redraw();
+		return;
+	}
 	Lib_ui_3ds_play_item(Lib_ui_current(&library_ui, index), play_callback);
 }
 
@@ -400,7 +496,15 @@ Lib_ui_3ds_play_callback play_callback)
 	if (DEF_HID_PR_EM(key->b, 1) || DEF_HID_HD(key->b)
 	|| DEF_HID_PR_EM(key->select, 1) || DEF_HID_HD(key->select))
 	{
-		Lib_ui_3ds_close();
+		if (library_queue_view)
+		{
+			library_queue_view = false;
+			Lib_ui_3ds_request_redraw();
+		}
+		else if (library_ui.filter == LIB_UI_FILTER_SERIES && Lib_ui_back(&library_ui, index))
+			Lib_ui_3ds_request_redraw();
+		else
+			Lib_ui_3ds_close();
 		Util_hid_reset_key_state(HID_KEY_BIT_ALL);
 		return;
 	}
@@ -445,7 +549,16 @@ Lib_ui_3ds_play_callback play_callback)
 		else if (touch_y >= LIB_UI_3DS_BUTTON_ROW_1_Y)
 		{
 			if (touch_x < 54)
-				library_queue_view = true;
+			{
+				if (library_ui.filter == LIB_UI_FILTER_SERIES
+				&& library_ui.level != LIB_UI_LEVEL_ROOT)
+				{
+					if (Lib_ui_back(&library_ui, index))
+						Lib_ui_3ds_request_redraw();
+				}
+				else
+					library_queue_view = true;
+			}
 			else if (touch_x < 107)
 				Lib_ui_3ds_queue_add_current(index);
 			else if (touch_x < 160)
@@ -525,6 +638,9 @@ Lib_ui_3ds_play_callback play_callback)
 			if (library_queue_cursor < library_queue_offset)
 				library_queue_offset = library_queue_cursor;
 		}
+		else if (!library_ui.grid_mode && library_ui.filter == LIB_UI_FILTER_SERIES
+		&& library_ui.level != LIB_UI_LEVEL_ROOT)
+			(void)Lib_ui_back(&library_ui, index);
 		else if (library_ui.grid_mode)
 			Lib_ui_move_direction(&library_ui, -1, 0);
 		else
@@ -540,6 +656,12 @@ Lib_ui_3ds_play_callback play_callback)
 			if (library_queue_cursor >= library_queue_offset + LIB_UI_3DS_ROWS)
 				library_queue_offset = library_queue_cursor - LIB_UI_3DS_ROWS + 1;
 		}
+		else if (!library_ui.grid_mode && library_ui.filter == LIB_UI_FILTER_SERIES
+		&& library_ui.level == LIB_UI_LEVEL_EPISODES)
+			Lib_ui_move_direction(&library_ui, 0, 1);
+		else if (!library_ui.grid_mode && library_ui.filter == LIB_UI_FILTER_SERIES
+		&& library_ui.level != LIB_UI_LEVEL_EPISODES)
+			(void)Lib_ui_enter(&library_ui, index);
 		else if (library_ui.grid_mode)
 			Lib_ui_move_direction(&library_ui, 1, 0);
 		else
@@ -589,6 +711,22 @@ Lib_ui_3ds_play_callback play_callback)
 
 static const char* Lib_ui_3ds_screen_title(void)
 {
+	static char title[160] = { 0, };
+	if (library_ui.filter == LIB_UI_FILTER_SERIES)
+	{
+		if (library_ui.level == LIB_UI_LEVEL_SEASONS)
+		{
+			snprintf(title, sizeof(title), "%.16s  ›  %.128s",
+			Lib_ui_3ds_text("SERIES", "SÉRIES"), library_ui.group_title);
+			return title;
+		}
+		if (library_ui.level == LIB_UI_LEVEL_EPISODES)
+		{
+			snprintf(title, sizeof(title), "%.128s  ›  %s %02d",
+			library_ui.group_title, Lib_ui_3ds_text("SEASON", "TEMP."), library_ui.group_season);
+			return title;
+		}
+	}
 	if (library_ui.filter == LIB_UI_FILTER_MOVIES)
 		return Lib_ui_3ds_text("MOVIES", "FILMES");
 	if (library_ui.filter == LIB_UI_FILTER_SERIES)
@@ -645,15 +783,14 @@ static const char* Lib_ui_3ds_sort_name(Lib_sort_key key)
 static bool Lib_ui_3ds_episode_info(const Lib_item* item, int* season, int* episode)
 {
 	char title[256] = { 0, };
-	int parsed_season = -1;
-	int parsed_episode = -1;
-	if (!item || !item->path || !Lib_name_parse(item->path, title, sizeof(title),
-	&parsed_season, &parsed_episode, NULL) || parsed_episode < 0)
+	Lib_name_info info = { -1, -1, -1, false, false };
+	if (!item || !item->path || !Lib_name_parse_info(item->path, title, sizeof(title), NULL, 0, &info)
+	|| !info.is_series)
 		return false;
 	if (season)
-		*season = parsed_season;
+		*season = info.season;
 	if (episode)
-		*episode = parsed_episode;
+		*episode = info.episode;
 	return true;
 }
 
@@ -664,18 +801,120 @@ static const char* Lib_ui_3ds_poster_label(const Lib_item* item)
 	is_episode ? "SÉRIE" : "FILME");
 }
 
-static void Lib_ui_3ds_format_meta(const Lib_item* item, char* out, size_t out_size)
+static bool Lib_ui_3ds_same_title(const char* a, const char* b)
 {
-	int season = -1;
-	int episode = -1;
+	if (!a || !b)
+		return false;
+	while (*a && *b)
+	{
+		char ca = (*a >= 'A' && *a <= 'Z') ? (char)(*a - 'A' + 'a') : *a;
+		char cb = (*b >= 'A' && *b <= 'Z') ? (char)(*b - 'A' + 'a') : *b;
+		if (ca != cb)
+			return false;
+		a++;
+		b++;
+	}
+	return (bool)(*a == 0x00 && *b == 0x00);
+}
+
+static const char* Lib_ui_3ds_format_title(const Lib_item* item, char* out, size_t out_size,
+bool queue_item)
+{
+	char series_title[256] = { 0, };
+	char episode_title[256] = { 0, };
+	Lib_name_info info = { -1, -1, -1, false, false };
+	if (!item || !out || out_size == 0)
+		return "";
+	if (Lib_name_parse_info(item->path, series_title, sizeof(series_title),
+	episode_title, sizeof(episode_title), &info) && info.is_series)
+	{
+		if (queue_item)
+		{
+			if (episode_title[0] != 0x00)
+				snprintf(out, out_size, "%s", episode_title);
+			else if (info.episode_known)
+				snprintf(out, out_size, "%s %02d  %s %02d",
+				Lib_ui_3ds_text("SEASON", "TEMP."), info.season > 0 ? info.season : 1,
+				Lib_ui_3ds_text("EP", "EP."), info.episode);
+			else
+				snprintf(out, out_size, "%s %02d",
+				Lib_ui_3ds_text("SEASON", "TEMP."), info.season > 0 ? info.season : 1);
+			return out;
+		}
+		if (library_ui.filter != LIB_UI_FILTER_SERIES)
+			return Lib_item_get_title(item);
+		if (library_ui.level == LIB_UI_LEVEL_SEASONS)
+		{
+			snprintf(out, out_size, "%s %02d",
+			Lib_ui_3ds_text("SEASON", "TEMPORADA"), info.season > 0 ? info.season : 1);
+			return out;
+		}
+		if (library_ui.level == LIB_UI_LEVEL_EPISODES)
+		{
+			if (episode_title[0] != 0x00)
+			{
+				snprintf(out, out_size, "%s", episode_title);
+				return out;
+			}
+			return Lib_path_basename(item->path);
+		}
+		snprintf(out, out_size, "%s", series_title);
+		return out;
+	}
+	return Lib_item_get_title(item);
+}
+
+static void Lib_ui_3ds_format_meta(const Lib_index* index, const Lib_item* item,
+char* out, size_t out_size, bool queue_item)
+{
 	int year = -1;
+	Lib_name_info info = { -1, -1, -1, false, false };
+	char series_title[256] = { 0, };
+	char episode_title[256] = { 0, };
 	bool is_series = false;
 	uint32_t progress = 0;
 	char status[32] = { 0, };
 
 	if (!out || out_size == 0 || !item)
 		return;
-	is_series = Lib_ui_3ds_episode_info(item, &season, &episode);
+	is_series = Lib_name_parse_info(item->path, series_title, sizeof(series_title),
+	episode_title, sizeof(episode_title), &info) && info.is_series;
+	if (!queue_item && library_ui.filter == LIB_UI_FILTER_SERIES && is_series
+	&& library_ui.level != LIB_UI_LEVEL_EPISODES && index)
+	{
+		bool seasons[100] = { 0, };
+		size_t episode_count = 0;
+		size_t season_count = 0;
+		for (size_t i = 0; i < index->count; i++)
+		{
+			char candidate_title[256] = { 0, };
+			Lib_name_info candidate_info = { -1, -1, -1, false, false };
+			if (!index->items[i].path || (index->items[i].flags & (LIB_ITEM_FLAG_MISSING
+			| LIB_ITEM_FLAG_UNSUPPORTED | LIB_ITEM_FLAG_AUDIO_ONLY))
+			|| Lib_scan_classify(index->items[i].path) != LIB_SCAN_KIND_VIDEO
+			|| !Lib_name_parse_info(index->items[i].path, candidate_title,
+			sizeof(candidate_title), NULL, 0, &candidate_info)
+			|| !candidate_info.is_series
+			|| !Lib_ui_3ds_same_title(series_title, candidate_title))
+				continue;
+			if (library_ui.level == LIB_UI_LEVEL_SEASONS
+			&& (candidate_info.season > 0 ? candidate_info.season : 1) != library_ui.group_season)
+				continue;
+			episode_count++;
+			if (library_ui.level == LIB_UI_LEVEL_ROOT && candidate_info.season > 0
+			&& candidate_info.season < (int)(sizeof(seasons) / sizeof(seasons[0])))
+				seasons[candidate_info.season] = true;
+		}
+		for (size_t i = 1; i < sizeof(seasons) / sizeof(seasons[0]); i++)
+			if (seasons[i])
+				season_count++;
+		if (library_ui.level == LIB_UI_LEVEL_ROOT)
+			snprintf(out, out_size, library_is_portuguese ? "%zu temp.  ·  %zu eps." : "%zu seasons  ·  %zu eps.",
+			season_count, episode_count);
+		else
+			snprintf(out, out_size, library_is_portuguese ? "%zu episódios" : "%zu episodes", episode_count);
+		return;
+	}
 	if (item->flags & LIB_ITEM_FLAG_WATCHED)
 		snprintf(status, sizeof(status), "%s", Lib_ui_3ds_text("WATCHED", "ASSISTIDO"));
 	else if (item->duration_ms > 0 && item->position_ms > 0)
@@ -687,15 +926,21 @@ static void Lib_ui_3ds_format_meta(const Lib_item* item, char* out, size_t out_s
 		Lib_ui_3ds_text("RESUME", "RETOMAR"), (unsigned)progress);
 	}
 	if (is_series)
-		snprintf(out, out_size, "%s %02d  %s %02d%s%s",
-		library_is_portuguese ? "TEMP." : "S",
-		season > 0 ? season : 0,
-		library_is_portuguese ? "EP." : "E",
-		episode,
-		status[0] ? "  |  " : "", status);
+	{
+		if (info.episode_known)
+			snprintf(out, out_size, "%s %02d  %s %02d%s%s",
+			library_is_portuguese ? "TEMP." : "S", info.season > 0 ? info.season : 1,
+			library_is_portuguese ? "EP." : "E", info.episode,
+			status[0] ? "  |  " : "", status);
+		else
+			snprintf(out, out_size, "%s %02d%s%s",
+			library_is_portuguese ? "TEMP." : "S", info.season > 0 ? info.season : 1,
+			status[0] ? "  |  " : "", status);
+	}
 	else
 	{
-		(void)Lib_name_parse(item->path, out, out_size, NULL, NULL, &year);
+		(void)Lib_name_parse_info(item->path, out, out_size, NULL, 0, &info);
+		year = info.year;
 		if (year > 0)
 			snprintf(out, out_size, "%d", year);
 		else if (item->duration_ms > 0)
@@ -982,6 +1227,7 @@ uint32_t text_color, bool* may_decode)
 	const Lib_item* item = NULL;
 	Lib_ui_3ds_thumb* thumb = NULL;
 	char meta[96] = { 0, };
+	char title[256] = { 0, };
 	float y = LIB_UI_3DS_LIST_ROW_Y + (slot * LIB_UI_3DS_LIST_ROW_HEIGHT);
 	uint32_t row_color = text_color;
 
@@ -1002,9 +1248,9 @@ uint32_t text_color, bool* may_decode)
 	}
 	thumb = Lib_ui_3ds_get_thumbnail(item, may_decode);
 	Lib_ui_3ds_draw_poster(item, thumb, LIB_UI_3DS_LIST_ROW_X + 5, y + 1, 40, 26);
-	Draw_with_crop_c(Lib_item_get_title(item), LIB_UI_3DS_LIST_ROW_X + 52, y + 1,
+	Draw_with_crop_c(Lib_ui_3ds_format_title(item, title, sizeof(title), false), LIB_UI_3DS_LIST_ROW_X + 52, y + 1,
 	UI_THEME_FONT_BODY, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_LIST_ROW_WIDTH - 56, 15);
-	Lib_ui_3ds_format_meta(item, meta, sizeof(meta));
+	Lib_ui_3ds_format_meta(index, item, meta, sizeof(meta), false);
 	Draw_with_crop_c(meta, LIB_UI_3DS_LIST_ROW_X + 52, y + 16,
 	UI_THEME_FONT_CAPTION, LIB_UI_3DS_COLOR_SECONDARY,
 	DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_LIST_ROW_WIDTH - 56, 11);
@@ -1017,6 +1263,7 @@ uint32_t text_color, bool* may_decode)
 	const Lib_item* item = NULL;
 	Lib_ui_3ds_thumb* thumb = NULL;
 	char meta[96] = { 0, };
+	char title[256] = { 0, };
 	size_t column = slot % LIB_UI_3DS_GRID_COLUMNS;
 	size_t row = slot / LIB_UI_3DS_GRID_COLUMNS;
 	float x = LIB_UI_3DS_GRID_X + (column * LIB_UI_3DS_GRID_CELL_WIDTH);
@@ -1039,10 +1286,10 @@ uint32_t text_color, bool* may_decode)
 	}
 	thumb = Lib_ui_3ds_get_thumbnail(item, may_decode);
 	Lib_ui_3ds_draw_poster(item, thumb, x + 6, y + 5, 54, 70);
-	Draw_with_crop_c(Lib_item_get_title(item), x + 66, y + 7,
+	Draw_with_crop_c(Lib_ui_3ds_format_title(item, title, sizeof(title), false), x + 66, y + 7,
 	UI_THEME_FONT_BODY, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
 	LIB_UI_3DS_GRID_CELL_WIDTH - 71, 30);
-	Lib_ui_3ds_format_meta(item, meta, sizeof(meta));
+	Lib_ui_3ds_format_meta(index, item, meta, sizeof(meta), false);
 	Draw_with_crop_c(meta, x + 66, y + 42,
 	UI_THEME_FONT_CAPTION, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
 	LIB_UI_3DS_GRID_CELL_WIDTH - 71, 24);
@@ -1110,10 +1357,10 @@ bool* may_decode_thumbnail)
 		}
 		thumb = Lib_ui_3ds_get_thumbnail(item, may_decode_thumbnail);
 		Lib_ui_3ds_draw_poster(item, thumb, LIB_UI_3DS_LIST_ROW_X + 5, y + 1, 40, 26);
-		Draw_with_crop_c(Lib_item_get_title(item), LIB_UI_3DS_LIST_ROW_X + 52, y + 1,
+		Draw_with_crop_c(Lib_ui_3ds_format_title(item, meta, sizeof(meta), true), LIB_UI_3DS_LIST_ROW_X + 52, y + 1,
 		UI_THEME_FONT_BODY, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
 		LIB_UI_3DS_LIST_ROW_WIDTH - 56, 15);
-		Lib_ui_3ds_format_meta(item, meta, sizeof(meta));
+		Lib_ui_3ds_format_meta(index, item, meta, sizeof(meta), true);
 		Draw_with_crop_c(meta, LIB_UI_3DS_LIST_ROW_X + 52, y + 16,
 		UI_THEME_FONT_CAPTION, LIB_UI_3DS_COLOR_SECONDARY,
 		DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, LIB_UI_3DS_LIST_ROW_WIDTH - 56, 11);
@@ -1162,7 +1409,7 @@ uint32_t background_color)
 		Lib_ui_3ds_draw_queue(index, text_color, &may_decode_thumbnail);
 		return;
 	}
-	snprintf(header, sizeof(header), "%s%s%s", Lib_ui_3ds_screen_title(),
+	snprintf(header, sizeof(header), "%.96s%s%.48s", Lib_ui_3ds_screen_title(),
 	library_ui.search[0] ? "  ·  " : "", library_ui.search);
 	snprintf(status, sizeof(status), "%zu  |  %s", library_ui.count,
 	Lib_ui_3ds_sort_name(library_ui.sort.key));
@@ -1182,7 +1429,9 @@ uint32_t background_color)
 	}
 	if (library_ui.count == 0)
 		Draw_align_c(library_ui.search[0] ? Lib_ui_3ds_text("No matching titles", "Nenhum resultado")
-		: Lib_ui_3ds_text("No videos in this view", "Nenhum vídeo nesta aba"),
+		: (library_ui.filter == LIB_UI_FILTER_SERIES && library_ui.level == LIB_UI_LEVEL_EPISODES
+		? Lib_ui_3ds_text("No episodes in this season", "Nenhum episódio nesta temporada")
+		: Lib_ui_3ds_text("No videos in this view", "Nenhum vídeo nesta aba")),
 		4, 104, UI_THEME_FONT_BODY, text_color, DRAW_X_ALIGN_CENTER,
 		DRAW_Y_ALIGN_CENTER, 312, 24);
 
@@ -1197,11 +1446,15 @@ uint32_t background_color)
 	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("FAV", "FAV."), 4, 5,
 	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.tab == LIB_VIEW_TAB_FAVORITES);
 
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("QUEUE", "FILA"), 0, 6,
+	Lib_ui_3ds_draw_button((library_ui.filter == LIB_UI_FILTER_SERIES
+	&& library_ui.level != LIB_UI_LEVEL_ROOT)
+	? Lib_ui_3ds_text("BACK", "VOLTAR") : Lib_ui_3ds_text("QUEUE", "FILA"), 0, 6,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
 	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("ADD", "ADIC."), 1, 6,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
-	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("PLAY", "VER"), 2, 6,
+	Lib_ui_3ds_draw_button((library_ui.filter == LIB_UI_FILTER_SERIES
+	&& library_ui.level != LIB_UI_LEVEL_EPISODES)
+	? Lib_ui_3ds_text("OPEN", "ABRIR") : Lib_ui_3ds_text("PLAY", "VER"), 2, 6,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);
 	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("SEARCH", "BUSCA"), 3, 6,
 	LIB_UI_3DS_BUTTON_ROW_1_Y, text_color, false);

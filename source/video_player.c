@@ -39,6 +39,7 @@
 #include "library/lib_library_3ds.h"
 #include "library/lib_name.h"
 #include "library/lib_queue.h"
+#include "library/lib_sort.h"
 #include "library/lib_scan.h"
 #include "library/lib_ui_3ds.h"
 
@@ -7316,6 +7317,8 @@ typedef struct
 	uint64_t id;
 	int season;
 	int episode;
+	bool episode_known;
+	const char* path;
 } Vid_episode_entry;
 
 static int Vid_episode_entry_compare(const void* left, const void* right)
@@ -7324,8 +7327,16 @@ static int Vid_episode_entry_compare(const void* left, const void* right)
 	const Vid_episode_entry* b = (const Vid_episode_entry*)right;
 	if (a->season != b->season)
 		return (a->season < b->season) ? -1 : 1;
-	if (a->episode != b->episode)
+	if (a->episode_known != b->episode_known)
+		return a->episode_known ? -1 : 1;
+	if (a->episode_known && a->episode != b->episode)
 		return (a->episode < b->episode) ? -1 : 1;
+	if (!a->episode_known && a->path && b->path)
+	{
+		int result = Lib_sort_natural_compare(a->path, b->path);
+		if (result != 0)
+			return result;
+	}
 	return (a->id < b->id) ? -1 : (a->id > b->id);
 }
 
@@ -7405,6 +7416,7 @@ static bool Vid_library_build_episode_profile(const Lib_item* selected)
 	char selected_title[256] = { 0, };
 	int selected_season = -1;
 	int selected_episode = -1;
+	Lib_name_info selected_info = { -1, -1, -1, false, false };
 	size_t count = 0;
 	size_t limit = 0;
 	bool selected_found = false;
@@ -7413,42 +7425,47 @@ static bool Vid_library_build_episode_profile(const Lib_item* selected)
 
 	if (!selected || !selected->path || !index)
 		return false;
-	if (!Lib_name_parse(selected->path, selected_title, sizeof(selected_title),
-	&selected_season, &selected_episode, NULL))
+	if (!Lib_name_parse_info(selected->path, selected_title, sizeof(selected_title),
+	NULL, 0, &selected_info))
 		return false;
+	selected_season = selected_info.season;
+	selected_episode = selected_info.episode;
 	limit = (index->count > 4096) ? 4096 : index->count;
 	entries = (Vid_episode_entry*)calloc(limit ? limit : 1, sizeof(*entries));
 	if (!entries)
 		return false;
 
-	if (selected_episode >= 0)
+	if (selected_info.is_series)
 	{
 		for (size_t i = 0; i < index->count && count < limit; i++)
 		{
 			char title[256] = { 0, };
-			int season = -1;
-			int episode = -1;
+			Lib_name_info info = { -1, -1, -1, false, false };
 			const Lib_item* candidate = &index->items[i];
 			if (!candidate->path || (candidate->flags & (LIB_ITEM_FLAG_MISSING | LIB_ITEM_FLAG_AUDIO_ONLY))
 			|| Lib_scan_classify(candidate->path) != LIB_SCAN_KIND_VIDEO
-			|| !Lib_name_parse(candidate->path, title, sizeof(title), &season, &episode, NULL)
-			|| episode < 0 || !Vid_library_title_equal(selected_title, title))
+			|| !Lib_name_parse_info(candidate->path, title, sizeof(title), NULL, 0, &info)
+			|| !info.is_series || !Vid_library_title_equal(selected_title, title))
 				continue;
 			entries[count].id = candidate->id;
-			entries[count].season = season;
-			entries[count].episode = episode;
+			entries[count].season = info.season > 0 ? info.season : 1;
+			entries[count].episode = info.episode;
+			entries[count].episode_known = info.episode_known;
+			entries[count].path = candidate->path;
 			if (candidate->id == selected->id)
 				selected_found = true;
 			count++;
 		}
 	}
-	if (selected_episode >= 0 && !selected_found)
+	if (selected_info.is_series && !selected_found)
 	{
 		if (count == limit && count > 0)
 			count--;
 		entries[count].id = selected->id;
 		entries[count].season = selected_season;
 		entries[count].episode = selected_episode;
+		entries[count].episode_known = selected_info.episode_known;
+		entries[count].path = selected->path;
 		count++;
 	}
 	if (count == 0)
@@ -7456,6 +7473,8 @@ static bool Vid_library_build_episode_profile(const Lib_item* selected)
 		entries[0].id = selected->id;
 		entries[0].season = selected_season;
 		entries[0].episode = selected_episode;
+		entries[0].episode_known = selected_info.episode_known;
+		entries[0].path = selected->path;
 		count = 1;
 	}
 	qsort(entries, count, sizeof(*entries), Vid_episode_entry_compare);

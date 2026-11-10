@@ -237,10 +237,11 @@ Lib_item* Lib_index_upsert(Lib_index* index, const char* path, uint64_t size, ui
 			return NULL;
 	}
 
-	if (!item->title || item->title[0] == 0x00)
+	if (!(item->flags & LIB_ITEM_FLAG_CUSTOM_TITLE))
 	{
 		Lib_name_parse(path, title, sizeof(title), NULL, NULL, NULL);
-		if (!Lib_index_set_string(&item->title, title))
+		if ((!item->title || strcmp(item->title, title) != 0)
+		&& !Lib_index_set_string(&item->title, title))
 			return NULL;
 	}
 
@@ -284,7 +285,10 @@ bool Lib_item_set_title(Lib_item* item, const char* title)
 	if (!item)
 		return false;
 
-	return Lib_index_set_string(&item->title, title);
+	if (!Lib_index_set_string(&item->title, title))
+		return false;
+	item->flags |= LIB_ITEM_FLAG_CUSTOM_TITLE;
+	return true;
 }
 
 bool Lib_item_set_path(Lib_item* item, const char* path)
@@ -297,10 +301,11 @@ bool Lib_item_set_path(Lib_item* item, const char* path)
 	if (!Lib_index_set_string(&item->path, path))
 		return false;
 
-	if (!item->title || item->title[0] == 0x00)
+	if (!(item->flags & LIB_ITEM_FLAG_CUSTOM_TITLE))
 	{
 		Lib_name_parse(path, title, sizeof(title), NULL, NULL, NULL);
-		if (!Lib_index_set_string(&item->title, title))
+		if ((!item->title || strcmp(item->title, title) != 0)
+		&& !Lib_index_set_string(&item->title, title))
 			return false;
 	}
 

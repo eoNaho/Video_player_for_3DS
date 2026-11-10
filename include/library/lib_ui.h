@@ -16,6 +16,11 @@ typedef uint8_t Lib_ui_filter;
 #define LIB_UI_FILTER_MOVIES				(Lib_ui_filter)(2)
 #define LIB_UI_FILTER_SERIES				(Lib_ui_filter)(3)
 
+typedef uint8_t Lib_ui_level;
+#define LIB_UI_LEVEL_ROOT					(Lib_ui_level)(0)
+#define LIB_UI_LEVEL_SEASONS				(Lib_ui_level)(1)
+#define LIB_UI_LEVEL_EPISODES				(Lib_ui_level)(2)
+
 //Pure navigation state for the library screen.
 //Rendering and input translation live in the 3DS adapter; this part is
 //host-testable and only depends on the index/view modules.
@@ -31,6 +36,9 @@ typedef struct
 	size_t offset;					//First visible index.
 	uint8_t rows;					//Visible rows (1..LIB_UI_MAX_ROWS).
 	bool grid_mode;					//Two-column navigation mode for compact grid renderers.
+	Lib_ui_level level;				//Series hierarchy: shows, seasons, then episodes.
+	char group_title[256];			//Selected series while navigating its seasons/episodes.
+	int group_season;				//Selected season while navigating episodes.
 	char search[LIB_UI_SEARCH_MAX];	//Case-insensitive title substring filter.
 	bool needs_rebuild;
 } Lib_ui;
@@ -59,6 +67,12 @@ bool Lib_ui_set_search(Lib_ui* ui, const char* search, const Lib_index* index);
 
 //Filters to all indexed items, videos, films, or season/episode names.
 void Lib_ui_set_filter(Lib_ui* ui, Lib_ui_filter filter);
+
+//Opens the selected series or season. Returns false when the current row is a file.
+bool Lib_ui_enter(Lib_ui* ui, const Lib_index* index);
+
+//Moves one level up from episodes to seasons or seasons to the series list.
+bool Lib_ui_back(Lib_ui* ui, const Lib_index* index);
 
 //Enables two-column directional navigation while retaining the same visible item count.
 void Lib_ui_set_grid_mode(Lib_ui* ui, bool enabled);

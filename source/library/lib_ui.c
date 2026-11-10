@@ -3,6 +3,7 @@
 #include "library/lib_name.h"
 #include "library/lib_scan.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -94,11 +95,23 @@ static bool Lib_ui_title_matches(const char* title, const char* search)
 	return false;
 }
 
+static bool Lib_ui_title_equal(const char* a, const char* b)
+{
+	if (!a || !b)
+		return false;
+	while (*a && *b)
+	{
+		if (Lib_ui_fold_codepoint(Lib_ui_next_codepoint(&a))
+		!= Lib_ui_fold_codepoint(Lib_ui_next_codepoint(&b)))
+			return false;
+	}
+	return (bool)(*a == 0x00 && *b == 0x00);
+}
+
 static bool Lib_ui_item_matches_filter(Lib_ui_filter filter, const Lib_item* item)
 {
 	char title[256] = { 0, };
-	int episode = -1;
-	bool is_series = false;
+	Lib_name_info info = { -1, -1, -1, false, false };
 
 	if (filter == LIB_UI_FILTER_ALL)
 		return true;
@@ -109,10 +122,9 @@ static bool Lib_ui_item_matches_filter(Lib_ui_filter filter, const Lib_item* ite
 		return true;
 	if (filter != LIB_UI_FILTER_MOVIES && filter != LIB_UI_FILTER_SERIES)
 		return false;
-	if (!Lib_name_parse(item->path, title, sizeof(title), NULL, &episode, NULL))
+	if (!Lib_name_parse_info(item->path, title, sizeof(title), NULL, 0, &info))
 		return filter == LIB_UI_FILTER_MOVIES;
-	is_series = (bool)(episode >= 0);
-	return (filter == LIB_UI_FILTER_SERIES) ? is_series : !is_series;
+	return (filter == LIB_UI_FILTER_SERIES) ? info.is_series : !info.is_series;
 }
 
 void Lib_ui_init(Lib_ui* ui)
@@ -125,6 +137,8 @@ void Lib_ui_init(Lib_ui* ui)
 	ui->sort.key = LIB_SORT_KEY_NAME;
 	ui->sort.descending = false;
 	ui->rows = 6;
+	ui->level = LIB_UI_LEVEL_ROOT;
+	ui->group_season = -1;
 	ui->needs_rebuild = true;
 }
 
@@ -185,6 +199,7 @@ bool Lib_ui_rebuild(Lib_ui* ui, const Lib_index* index)
 {
 	uint64_t selected_id = 0;
 	uint64_t* ids = NULL;
+	Lib_sort_spec effective_sort = { LIB_SORT_KEY_NAME, false };
 	size_t count = 0;
 	bool had_selection = false;
 
@@ -204,7 +219,13 @@ bool Lib_ui_rebuild(Lib_ui* ui, const Lib_index* index)
 	if (!ids)
 		return false;
 
-	if (!Lib_view_build(index, ui->tab, &ui->sort, ids, index->count, &count))
+	effective_sort = ui->sort;
+	if (ui->filter == LIB_UI_FILTER_SERIES && ui->level != LIB_UI_LEVEL_ROOT)
+	{
+		effective_sort.key = LIB_SORT_KEY_NAME;
+		effective_sort.descending = false;
+	}
+	if (!Lib_view_build(index, ui->tab, &effective_sort, ids, index->count, &count))
 	{
 		free(ids);
 		return false;
@@ -215,8 +236,61 @@ bool Lib_ui_rebuild(Lib_ui* ui, const Lib_index* index)
 		for (size_t i = 0; i < count; i++)
 		{
 			const Lib_item* item = Lib_index_find_id_const(index, ids[i]);
-			if (item && Lib_ui_item_matches_filter(ui->filter, item)
-			&& Lib_ui_title_matches(Lib_item_get_title(item), ui->search))
+			char parsed_title[256] = { 0, };
+			Lib_name_info info = { -1, -1, -1, false, false };
+			bool duplicate = false;
+			if (!item || !Lib_ui_item_matches_filter(ui->filter, item))
+				continue;
+
+			if (ui->filter == LIB_UI_FILTER_SERIES)
+			{
+				if (!Lib_name_parse_info(item->path, parsed_title, sizeof(parsed_title), NULL, 0, &info)
+				|| !info.is_series)
+					continue;
+				if (ui->level != LIB_UI_LEVEL_ROOT
+				&& !Lib_ui_title_equal(parsed_title, ui->group_title))
+					continue;
+				if (ui->level == LIB_UI_LEVEL_EPISODES
+				&& (info.season > 0 ? info.season : 1) != ui->group_season)
+					continue;
+				if (!Lib_ui_title_matches(parsed_title, ui->search))
+					continue;
+
+				if (ui->level == LIB_UI_LEVEL_ROOT)
+				{
+					for (size_t j = 0; j < filtered_count; j++)
+					{
+						const Lib_item* previous = Lib_index_find_id_const(index, ids[j]);
+						char previous_title[256] = { 0, };
+						if (previous && Lib_name_parse_info(previous->path, previous_title,
+						sizeof(previous_title), NULL, 0, NULL)
+						&& Lib_ui_title_equal(parsed_title, previous_title))
+						{
+							duplicate = true;
+						break;
+						}
+					}
+				}
+				else if (ui->level == LIB_UI_LEVEL_SEASONS)
+				{
+					int season = (info.season > 0) ? info.season : 1;
+					for (size_t j = 0; j < filtered_count; j++)
+					{
+						const Lib_item* previous = Lib_index_find_id_const(index, ids[j]);
+						Lib_name_info previous_info = { -1, -1, -1, false, false };
+						if (previous && Lib_name_parse_info(previous->path, parsed_title,
+						sizeof(parsed_title), NULL, 0, &previous_info)
+						&& (previous_info.season > 0 ? previous_info.season : 1) == season)
+						{
+							duplicate = true;
+						break;
+						}
+					}
+				}
+			}
+			else if (!Lib_ui_title_matches(Lib_item_get_title(item), ui->search))
+				continue;
+			if (!duplicate)
 				ids[filtered_count++] = ids[i];
 		}
 		count = filtered_count;
@@ -271,6 +345,9 @@ bool Lib_ui_set_tab(Lib_ui* ui, Lib_view_tab tab, const Lib_index* index)
 	if (ui->tab != tab)
 	{
 		ui->tab = tab;
+		ui->level = LIB_UI_LEVEL_ROOT;
+		ui->group_title[0] = 0x00;
+		ui->group_season = -1;
 		ui->cursor = 0;
 		ui->offset = 0;
 	}
@@ -315,12 +392,116 @@ bool Lib_ui_set_search(Lib_ui* ui, const char* search, const Lib_index* index)
 
 void Lib_ui_set_filter(Lib_ui* ui, Lib_ui_filter filter)
 {
-	if (!ui || filter > LIB_UI_FILTER_SERIES || ui->filter == filter)
+	if (!ui || filter > LIB_UI_FILTER_SERIES)
 		return;
+	if (ui->filter == filter)
+	{
+		if (ui->level == LIB_UI_LEVEL_ROOT)
+			return;
+		ui->level = LIB_UI_LEVEL_ROOT;
+		ui->group_title[0] = 0x00;
+		ui->group_season = -1;
+		ui->cursor = 0;
+		ui->offset = 0;
+		Lib_ui_invalidate(ui);
+		return;
+	}
 	ui->filter = filter;
+	ui->level = LIB_UI_LEVEL_ROOT;
+	ui->group_title[0] = 0x00;
+	ui->group_season = -1;
 	ui->cursor = 0;
 	ui->offset = 0;
 	Lib_ui_invalidate(ui);
+}
+
+bool Lib_ui_enter(Lib_ui* ui, const Lib_index* index)
+{
+	const Lib_item* item = NULL;
+	char title[sizeof(ui->group_title)] = { 0, };
+	Lib_name_info info = { -1, -1, -1, false, false };
+	if (!ui || !index || ui->filter != LIB_UI_FILTER_SERIES)
+		return false;
+	item = Lib_ui_current(ui, index);
+	if (!item || !Lib_name_parse_info(item->path, title, sizeof(title), NULL, 0, &info)
+	|| !info.is_series)
+		return false;
+
+	if (ui->level == LIB_UI_LEVEL_ROOT)
+	{
+		snprintf(ui->group_title, sizeof(ui->group_title), "%s", title);
+		ui->group_season = -1;
+		ui->level = LIB_UI_LEVEL_SEASONS;
+	}
+	else if (ui->level == LIB_UI_LEVEL_SEASONS)
+	{
+		ui->group_season = (info.season > 0) ? info.season : 1;
+		ui->level = LIB_UI_LEVEL_EPISODES;
+	}
+	else
+		return false;
+
+	ui->cursor = 0;
+	ui->offset = 0;
+	ui->count = 0;
+	ui->needs_rebuild = true;
+	return Lib_ui_rebuild(ui, index);
+}
+
+bool Lib_ui_back(Lib_ui* ui, const Lib_index* index)
+{
+	Lib_ui_level previous_level = LIB_UI_LEVEL_ROOT;
+	char previous_group[256] = { 0, };
+	if (!ui || !index || ui->filter != LIB_UI_FILTER_SERIES || ui->level == LIB_UI_LEVEL_ROOT)
+		return false;
+	previous_level = ui->level;
+	snprintf(previous_group, sizeof(previous_group), "%s", ui->group_title);
+	if (ui->level == LIB_UI_LEVEL_EPISODES)
+		ui->level = LIB_UI_LEVEL_SEASONS;
+	else
+	{
+		ui->level = LIB_UI_LEVEL_ROOT;
+		ui->group_title[0] = 0x00;
+		ui->group_season = -1;
+	}
+	ui->cursor = 0;
+	ui->offset = 0;
+	ui->count = 0;
+	ui->needs_rebuild = true;
+	if (!Lib_ui_rebuild(ui, index))
+		return false;
+
+	if (previous_level == LIB_UI_LEVEL_EPISODES)
+	{
+		for (size_t i = 0; i < ui->count; i++)
+		{
+			const Lib_item* item = Lib_index_find_id_const(index, ui->ids[i]);
+			Lib_name_info info = { -1, -1, -1, false, false };
+			char title[sizeof(ui->group_title)] = { 0, };
+			if (item && Lib_name_parse_info(item->path, title, sizeof(title), NULL, 0, &info)
+			&& (info.season > 0 ? info.season : 1) == ui->group_season)
+			{
+				ui->cursor = i;
+				break;
+			}
+		}
+	}
+	else
+	{
+		for (size_t i = 0; i < ui->count; i++)
+		{
+			const Lib_item* item = Lib_index_find_id_const(index, ui->ids[i]);
+			char title[sizeof(ui->group_title)] = { 0, };
+			if (item && Lib_name_parse_info(item->path, title, sizeof(title), NULL, 0, NULL)
+			&& Lib_ui_title_equal(title, previous_group))
+			{
+				ui->cursor = i;
+				break;
+			}
+		}
+	}
+	Lib_ui_move(ui, 0);
+	return true;
 }
 
 void Lib_ui_set_grid_mode(Lib_ui* ui, bool enabled)

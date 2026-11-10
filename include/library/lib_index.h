@@ -18,6 +18,7 @@ typedef uint8_t Lib_item_flags;
 #define LIB_ITEM_FLAG_UNSUPPORTED			(Lib_item_flags)(1 << 4)
 #define LIB_ITEM_FLAG_HAS_THUMB				(Lib_item_flags)(1 << 5)
 #define LIB_ITEM_FLAG_AUDIO_ONLY			(Lib_item_flags)(1 << 6)
+#define LIB_ITEM_FLAG_CUSTOM_TITLE			(Lib_item_flags)(1 << 7)
 
 typedef uint8_t Lib_video_codec;
 #define LIB_VIDEO_CODEC_UNKNOWN				(Lib_video_codec)(0)
