@@ -8,6 +8,7 @@
 #include "library/lib_view.h"
 
 #define LIB_UI_MAX_ROWS					(uint8_t)(8)
+#define LIB_UI_SEARCH_MAX				(uint32_t)(128)
 
 //Pure navigation state for the library screen.
 //Rendering and input translation live in the 3DS adapter; this part is
@@ -22,6 +23,8 @@ typedef struct
 	size_t cursor;					//Index into ids.
 	size_t offset;					//First visible index.
 	uint8_t rows;					//Visible rows (1..LIB_UI_MAX_ROWS).
+	bool grid_mode;					//Two-column navigation mode for compact grid renderers.
+	char search[LIB_UI_SEARCH_MAX];	//Case-insensitive title substring filter.
 	bool needs_rebuild;
 } Lib_ui;
 
@@ -44,8 +47,17 @@ bool Lib_ui_set_tab(Lib_ui* ui, Lib_view_tab tab, const Lib_index* index);
 
 bool Lib_ui_set_sort(Lib_ui* ui, Lib_sort_key key, bool descending, const Lib_index* index);
 
+//Sets a case-insensitive title substring filter. NULL or empty clears it.
+bool Lib_ui_set_search(Lib_ui* ui, const char* search, const Lib_index* index);
+
+//Enables two-column directional navigation while retaining the same visible item count.
+void Lib_ui_set_grid_mode(Lib_ui* ui, bool enabled);
+
 //Moves the cursor by delta (clamped). Keeps the cursor visible.
 void Lib_ui_move(Lib_ui* ui, int32_t delta);
+
+//Moves by a direction. In list mode only vertical movement is applied.
+void Lib_ui_move_direction(Lib_ui* ui, int32_t dx, int32_t dy);
 
 //Moves by one screen (rows - 1, like a page down).
 void Lib_ui_page(Lib_ui* ui, bool forward);

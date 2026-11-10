@@ -708,6 +708,31 @@ static void Test_ui(void)
 	CHECK(Lib_ui_set_tab(&ui, LIB_VIEW_TAB_ALL, &index));
 	CHECK(ui.count == 5);
 
+	//Title search filters in memory, ignores ASCII case, and can be cleared.
+	CHECK(Lib_item_set_title(Lib_index_find_id(&index, 5), "Ética"));
+	CHECK(Lib_ui_set_search(&ui, "ética", &index));
+	CHECK(ui.count == 1 && strcmp(Lib_item_get_title(Lib_ui_current(&ui, &index)), "Ética") == 0);
+	CHECK(Lib_ui_set_search(&ui, "e2", &index));
+	CHECK(ui.count == 1 && strcmp(Lib_item_get_title(Lib_ui_current(&ui, &index)), "E2") == 0);
+	CHECK(Lib_ui_set_search(&ui, "", &index));
+	CHECK(ui.count == 5);
+
+	//Grid movement uses two columns and clamps on the partial last row.
+	CHECK(Lib_ui_set_rows(&ui, LIB_UI_MAX_ROWS));
+	Lib_ui_move(&ui, -10);
+	Lib_ui_set_grid_mode(&ui, true);
+	Lib_ui_move_direction(&ui, 1, 0);
+	CHECK(ui.cursor == 1);
+	Lib_ui_move_direction(&ui, 0, 1);
+	CHECK(ui.cursor == 3);
+	Lib_ui_move_direction(&ui, 0, 1);
+	CHECK(ui.cursor == 4);
+	Lib_ui_move_direction(&ui, -1, 0);
+	CHECK(ui.cursor == 4);
+	Lib_ui_move_direction(&ui, 0, -1);
+	CHECK(ui.cursor == 2);
+	Lib_ui_set_grid_mode(&ui, false);
+
 	//Selecting the last item and shrinking the list clamps.
 	Lib_ui_move(&ui, 10);
 	CHECK(Lib_index_remove_id(&index, index.items[4].id));

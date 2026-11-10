@@ -3,6 +3,94 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define LIB_UI_GRID_COLUMNS				(size_t)(2)
+
+static uint32_t Lib_ui_fold_codepoint(uint32_t codepoint)
+{
+	if (codepoint >= 'A' && codepoint <= 'Z')
+		return codepoint + ('a' - 'A');
+	if ((codepoint >= 0x00C0 && codepoint <= 0x00D6)
+	|| (codepoint >= 0x00D8 && codepoint <= 0x00DE))
+		return codepoint + 0x20;
+	if (codepoint == 0x0178)
+		return 0x00FF;
+	return codepoint;
+}
+
+static uint32_t Lib_ui_next_codepoint(const char** text)
+{
+	const unsigned char* bytes = (const unsigned char*)*text;
+	uint32_t codepoint = 0;
+	uint8_t extra = 0;
+
+	if (bytes[0] < 0x80)
+	{
+		(*text)++;
+		return bytes[0];
+	}
+	if ((bytes[0] & 0xE0) == 0xC0)
+	{
+		codepoint = bytes[0] & 0x1F;
+		extra = 1;
+	}
+	else if ((bytes[0] & 0xF0) == 0xE0)
+	{
+		codepoint = bytes[0] & 0x0F;
+		extra = 2;
+	}
+	else if ((bytes[0] & 0xF8) == 0xF0)
+	{
+		codepoint = bytes[0] & 0x07;
+		extra = 3;
+	}
+	else
+	{
+		(*text)++;
+		return bytes[0];
+	}
+
+	for (uint8_t i = 1; i <= extra; i++)
+	{
+		if (bytes[i] == 0x00 || (bytes[i] & 0xC0) != 0x80)
+		{
+			(*text)++;
+			return bytes[0];
+		}
+		codepoint = (codepoint << 6) | (bytes[i] & 0x3F);
+	}
+	*text += extra + 1;
+	return codepoint;
+}
+
+static bool Lib_ui_title_matches(const char* title, const char* search)
+{
+	if (!title || !search)
+		return false;
+	if (search[0] == 0x00)
+		return true;
+
+	for (const char* start = title; *start; )
+	{
+		const char* text = start;
+		const char* query = search;
+		bool matches = true;
+		while (*text && *query)
+		{
+			uint32_t text_codepoint = Lib_ui_fold_codepoint(Lib_ui_next_codepoint(&text));
+			uint32_t query_codepoint = Lib_ui_fold_codepoint(Lib_ui_next_codepoint(&query));
+			if (text_codepoint != query_codepoint)
+			{
+				matches = false;
+				break;
+			}
+		}
+		if (matches && *query == 0x00)
+			return true;
+		(void)Lib_ui_next_codepoint(&start);
+	}
+	return false;
+}
+
 void Lib_ui_init(Lib_ui* ui)
 {
 	if (!ui)
@@ -98,6 +186,18 @@ bool Lib_ui_rebuild(Lib_ui* ui, const Lib_index* index)
 		return false;
 	}
 
+	if (ui->search[0] != 0x00)
+	{
+		size_t filtered_count = 0;
+		for (size_t i = 0; i < count; i++)
+		{
+			const Lib_item* item = Lib_index_find_id_const(index, ids[i]);
+			if (item && Lib_ui_title_matches(Lib_item_get_title(item), ui->search))
+				ids[filtered_count++] = ids[i];
+		}
+		count = filtered_count;
+	}
+
 	if (!Lib_ui_reserve(ui, count))
 	{
 		free(ids);
@@ -170,6 +270,34 @@ bool Lib_ui_set_sort(Lib_ui* ui, Lib_sort_key key, bool descending, const Lib_in
 	return Lib_ui_rebuild(ui, index);
 }
 
+bool Lib_ui_set_search(Lib_ui* ui, const char* search, const Lib_index* index)
+{
+	size_t length = 0;
+
+	if (!ui || !index)
+		return false;
+	if (!search)
+		search = "";
+
+	while (length < (LIB_UI_SEARCH_MAX - 1) && search[length] != 0x00)
+		length++;
+	if (length > 0)
+		memcpy(ui->search, search, length);
+	ui->search[length] = 0x00;
+	ui->cursor = 0;
+	ui->offset = 0;
+	return Lib_ui_rebuild(ui, index);
+}
+
+void Lib_ui_set_grid_mode(Lib_ui* ui, bool enabled)
+{
+	if (!ui || ui->grid_mode == enabled)
+		return;
+
+	ui->grid_mode = enabled;
+	Lib_ui_move(ui, 0);
+}
+
 void Lib_ui_move(Lib_ui* ui, int32_t delta)
 {
 	size_t position = 0;
@@ -210,6 +338,53 @@ void Lib_ui_move(Lib_ui* ui, int32_t delta)
 
 	if (ui->offset > ui->count - 1)
 		ui->offset = ui->count - 1;
+	if (ui->grid_mode)
+	{
+		ui->offset = ((ui->offset + 1) / LIB_UI_GRID_COLUMNS) * LIB_UI_GRID_COLUMNS;
+		if (ui->cursor < ui->offset)
+			ui->offset = (ui->cursor / LIB_UI_GRID_COLUMNS) * LIB_UI_GRID_COLUMNS;
+	}
+}
+
+void Lib_ui_move_direction(Lib_ui* ui, int32_t dx, int32_t dy)
+{
+	size_t row = 0;
+	size_t column = 0;
+	size_t target = 0;
+	size_t last = 0;
+
+	if (!ui || ui->count == 0)
+		return;
+	if (!ui->grid_mode)
+	{
+		if (dy != 0)
+			Lib_ui_move(ui, dy);
+		return;
+	}
+
+	if (ui->cursor >= ui->count)
+		ui->cursor = ui->count - 1;
+	row = ui->cursor / LIB_UI_GRID_COLUMNS;
+	column = ui->cursor % LIB_UI_GRID_COLUMNS;
+	last = ui->count - 1;
+	if (dx != 0)
+	{
+		if ((dx < 0 && column == 0) || (dx > 0 && column + 1 >= LIB_UI_GRID_COLUMNS))
+			return;
+		target = (size_t)((int32_t)ui->cursor + ((dx < 0) ? -1 : 1));
+		if (target <= last)
+			Lib_ui_move(ui, (dx < 0) ? -1 : 1);
+		return;
+	}
+	if (dy == 0)
+		return;
+	if (dy < 0 && row == 0)
+		return;
+	row = (size_t)((int32_t)row + ((dy < 0) ? -1 : 1));
+	target = row * LIB_UI_GRID_COLUMNS + column;
+	if (target > last)
+		target = last;
+	Lib_ui_move(ui, (int32_t)target - (int32_t)ui->cursor);
 }
 
 void Lib_ui_page(Lib_ui* ui, bool forward)

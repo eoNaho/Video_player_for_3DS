@@ -13,7 +13,7 @@ segundo plano (scan, probe, miniaturas) cede CPU ao player.
 | Atualizador | Aponta para `github.com/eoNaho/Video_player_for_3DS` |
 | Telemetria | Desligada (`DEF_SEM_ENABLE_SEND_APP_INFO = false`) |
 | Câmera / mic / encoder A/V / muxer | Desligados no build |
-| Visual padrão | Lista com miniatura 48×27 |
+| Visual padrão | Lista compacta ou grade 2×4; miniaturas sidecar limitadas a 8 visíveis |
 | Miniaturas | Sidecar (`<nome>.jpg`, `poster.jpg`, `folder.jpg`) + geração no PC via FTP; extração no console só depois de medir |
 
 ## Fases
@@ -27,12 +27,15 @@ segundo plano (scan, probe, miniaturas) cede CPU ao player.
    (`lib_store_3ds`) e migração de `saved_pos` (`lib_migrate_3ds`). Probe, integração
    com `video_player.c`, retomada persistente, abas e tela 3DS leve já estão implementados;
    falta validar o alvo no console.
-- **Fase 2 — Metadados e miniaturas:** probe e etiqueta de compatibilidade já estão
-   integrados; faltam miniaturas sidecar, grade e geração no PC via FTP.
+- **Fase 2 — Metadados e miniaturas:** probe, etiquetas de codec/resolução/tracks,
+  miniaturas sidecar preguiçosas, grade 2×4, busca por título e atalhos de ordenação
+  estão implementados no código. Geração das sidecars no PC via FTP e validação no
+  Old 3DS continuam pendentes.
 - **Fase 3 — Player e configurações:** tokens de design, alvos de toque ≥ 24 px,
   configurações por categoria, pt-BR.
 - **Fase 4 — Otimização guiada por medição:** só o que o baseline justificar.
-- **Fase 5 — Extras:** busca, favoritos, próximo episódio, perfil automático completo.
+- **Fase 5 — Extras:** busca básica e favoritos estão disponíveis na biblioteca;
+  próximo episódio e perfil automático completo continuam pendentes.
 
 ## Integração
 
@@ -64,7 +67,8 @@ O núcleo da biblioteca (`source/library/`) não depende do 3DS e roda no PC:
 make -C tests run
 ```
 
-Cobre hash de id, parser de título/temporada/episódio/ano, migração do nome de
+Inclui busca de título sem diferenciar caixa ASCII/acentos latinos e navegação em
+grade 2-colunas. Também cobre hash de id, parser de título/temporada/episódio/ano, migração do nome de
 `saved_pos`, formato binário do índice (round-trip, checksum, versão), diff de
 varredura (renome/carência), ordenação natural, abas da biblioteca, navegação
 da tela, posições legadas e nomes de miniatura, além dos modos da fila
