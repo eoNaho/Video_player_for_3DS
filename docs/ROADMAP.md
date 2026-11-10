@@ -21,8 +21,9 @@ segundo plano (scan, probe, miniaturas) cede CPU ao player.
 - **Fase 0 — Fundação (concluída no código):** updater próprio, binários do upstream removidos,
   identidade no `Makefile`/SMDH, telemetria desligada, flags de recursos não usados,
   template de baseline em [`BASELINE.md`](BASELINE.md) (medição ainda pendente no console).
-- **Fase 1 — Biblioteca MVP:** índice binário versionado, scan leve, abas
-  Todos/Continuar assistindo, fila com os 4 modos, resume por id e migração de `saved_pos/`.
+- **Fase 1 — Biblioteca MVP:** núcleo portável concluído (`lib_index`, `lib_name`,
+  `lib_queue` + testes no PC). Faltam scan/probe, migração de `saved_pos` no console
+  e integração com `video_player.c`; abas Todos/Continuar assistindo e fila com os 4 modos.
 - **Fase 2 — Metadados e miniaturas:** probe em segundo plano com pausa no playback,
   miniaturas sidecar, grade, etiqueta de compatibilidade.
 - **Fase 3 — Player e configurações:** tokens de design, alvos de toque ≥ 24 px,
@@ -48,3 +49,16 @@ leitura/gravação de `saved_pos/` e `vid_settings.txt` (V7 aditiva).
 3. Nenhuma alteração na decode thread é necessária para a biblioteca.
 4. Toda otimização registra número antes/depois em `BASELINE.md`.
 5. Fork permanece GPLv3 com créditos ao projeto original.
+
+## Testes no PC
+
+O núcleo da biblioteca (`source/library/`) não depende do 3DS e roda no PC:
+
+```sh
+make -C tests run
+```
+
+Cobre hash de id, parser de título/temporada/episódio/ano, migração do nome de
+`saved_pos`, formato binário do índice (round-trip, checksum, versão) e os modos
+da fila (incluindo baralho sem repetição).
+
