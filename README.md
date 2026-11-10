@@ -6,37 +6,26 @@
 > Camera, microphone and the video/audio encoders are disabled in this build.
 > Library, resume-by-id, new UI and Old 3DS optimizations are tracked in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-[![Total downloads](https://img.shields.io/github/downloads/Core-2-Extreme/Video_player_for_3DS/total?color=red&style=flat-square)](https://github.com/Core-2-Extreme/Video_player_for_3DS/releases)
-[![Commits since latest release](https://img.shields.io/github/commits-since/Core-2-Extreme/Video_player_for_3DS/latest?color=orange&style=flat-square)](https://github.com/Core-2-Extreme/Video_player_for_3DS/commits)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/Core-2-Extreme/Video_player_for_3DS?color=gold&style=flat-square)](https://github.com/Core-2-Extreme/Video_player_for_3DS/commits)
-[![Coverity scan](https://img.shields.io/coverity/scan/29203.svg?color=green&style=flat-square)](https://scan.coverity.com/projects/core-2-extreme-video_player_for_3ds)
-[![Latest release](https://img.shields.io/github/v/release/Core-2-Extreme/Video_player_for_3DS?color=blue&style=flat-square)](https://github.com/Core-2-Extreme/Video_player_for_3DS/releases/latest)
-[![Contributors](https://img.shields.io/github/contributors/Core-2-Extreme/Video_player_for_3DS?color=aqua&style=flat-square)](https://github.com/Core-2-Extreme/Video_player_for_3DS/graphs/contributors/)
-
-[![Stars](https://img.shields.io/github/stars/Core-2-Extreme/Video_player_for_3DS?style=social)](https://github.com/Core-2-Extreme/Video_player_for_3DS/stargazers)
-[![Forks](https://img.shields.io/github/forks/Core-2-Extreme/Video_player_for_3DS?style=social)](https://github.com/Core-2-Extreme/Video_player_for_3DS/forks)
-[![Watchers](https://img.shields.io/github/watchers/Core-2-Extreme/Video_player_for_3DS?style=social)](https://github.com/Core-2-Extreme/Video_player_for_3DS/watchers)
-[![License](https://img.shields.io/badge/License-GPLv3-cyan.svg?style=flat-square)](https://github.com/Core-2-Extreme/Video_player_for_3DS/blob/main/LICENSE)
-[![Discord](https://img.shields.io/discord/589750386806620160?logo=discord&color=7289DA&style=flat-square)](https://discord.gg/MMsAXvetpR)
-[![GBAtemp](https://img.shields.io/badge/GBAtemp-community-blue)](https://gbatemp.net/threads/release-video-player-for-3ds.586094)
+[![License](https://img.shields.io/badge/License-GPLv3-cyan.svg?style=flat-square)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/eoNaho/Video_player_for_3DS?color=blue&style=flat-square)](https://github.com/eoNaho/Video_player_for_3DS/releases/latest)
 
 ## Index
-* [Screenshots](https://github.com/Core-2-Extreme/Video_player_for_3DS#screenshots)
-* [Features](https://github.com/Core-2-Extreme/Video_player_for_3DS#features)
-* [Prepare videos](https://github.com/Core-2-Extreme/Video_player_for_3DS#prepare-videos)
-* [Prepare videos (advanced users)](https://github.com/Core-2-Extreme/Video_player_for_3DS#prepare-videos-advanced-users)
-* [Controls](https://github.com/Core-2-Extreme/Video_player_for_3DS#controls)
-* [Supported languages](https://github.com/Core-2-Extreme/Video_player_for_3DS#supported-languages)
-* [Supported codecs](https://github.com/Core-2-Extreme/Video_player_for_3DS#supported-codecs)
-* [Supported containers](https://github.com/Core-2-Extreme/Video_player_for_3DS#supported-containers-extensions)
-* [Build](https://github.com/Core-2-Extreme/Video_player_for_3DS#build)
-* [Recommended resolution](https://github.com/Core-2-Extreme/Video_player_for_3DS#recommended-resolution)
-* [Benchmark](https://github.com/Core-2-Extreme/Video_player_for_3DS#benchmark)
-* [Troubleshoot/FAQ](https://github.com/Core-2-Extreme/Video_player_for_3DS#troubleshootfaq)
-* [Patch note](https://github.com/Core-2-Extreme/Video_player_for_3DS#patch-note)
-* [License](https://github.com/Core-2-Extreme/Video_player_for_3DS#license)
-* [Credits](https://github.com/Core-2-Extreme/Video_player_for_3DS#credits)
-* [Donation](https://github.com/Core-2-Extreme/Video_player_for_3DS#donation)
+* [Screenshots](#screenshots)
+* [Features](#features)
+* [Prepare videos](#prepare-videos)
+* [Prepare videos (advanced users)](#prepare-videos-advanced-users)
+* [Controls](#controls)
+* [Supported languages](#supported-languages)
+* [Supported codecs](#supported-codecs)
+* [Supported containers](#supported-containers-extensions)
+* [Build](#build)
+* [Recommended resolution](#recommended-resolution)
+* [Benchmark](#benchmark)
+* [Troubleshoot/FAQ](#troubleshootfaq)
+* [Patch note](#patch-note)
+* [License](#license)
+* [Credits](#credits)
+* [Donation](#donation)
 
 ## Screenshots
 **With multiple audio tracks support** \
@@ -66,7 +55,7 @@ Full-screen mode ✅
 you need to enable 3D mode in settings (settings->LCD->Screen mode->3D or Auto)
 
 ## Prepare videos
-If you are an advanced user, see [Recommended resolution](https://github.com/Core-2-Extreme/Video_player_for_3DS#Recommended-resolution) and [Benchmark](https://github.com/Core-2-Extreme/Video_player_for_3DS#Benchmark) for performance then use commandline in the [Prepare videos (advanced users)](https://github.com/Core-2-Extreme/Video_player_for_3DS#prepare-videos-advanced-users).
+If you are an advanced user, see [Recommended resolution](#Recommended-resolution) and [Benchmark](#Benchmark) for performance then use commandline in the [Prepare videos (advanced users)](#prepare-videos-advanced-users).
 
 If not, you can use these tools:
 > [!IMPORTANT]
@@ -265,7 +254,7 @@ OLD3DS:
 
 ## Troubleshoot/FAQ
 1. Q. Can I watch SBS (side-by-side) 3D videos?????
-    * A. **Yes** ✅, make sure your video has [stereoscopic metadata](https://github.com/Core-2-Extreme/Video_player_for_3DS#prepare-videos-advanced-users)!!!!!
+    * A. **Yes** ✅, make sure your video has [stereoscopic metadata](#prepare-videos-advanced-users)!!!!!
 2. Q. I've changed volume in app settings but it doesn't apply!!!!! Why?????
     * A. For now, manual volume changes in app settings **takes some time to apply** ⚠️ due to implementation!!!!!
 3. Q. Can I use variable-framerate videos?????
@@ -293,26 +282,26 @@ OLD3DS:
     * A. **Yes** ✅, you should join our [![Discord](https://img.shields.io/discord/589750386806620160?logo=discord&color=7289DA&style=flat-square)](https://discord.gg/MMsAXvetpR) for the answer; longer you are in our [![Discord](https://img.shields.io/discord/589750386806620160?logo=discord&color=7289DA&style=flat-square)](https://discord.gg/MMsAXvetpR), more you know what <img src="https://github.com/user-attachments/assets/2ad7bede-0660-4154-a9b8-d80fbf495006" width="50" height="50"> is!!!!!
 
 ## Patch note
-* [v1.8.0](https://github.com/Core-2-Extreme/Video_player_for_3DS#v180)
-* [v1.7.0](https://github.com/Core-2-Extreme/Video_player_for_3DS#v170)
-* [v1.6.1](https://github.com/Core-2-Extreme/Video_player_for_3DS#v161)
-* [v1.6.0](https://github.com/Core-2-Extreme/Video_player_for_3DS#v160)
-* [v1.5.3](https://github.com/Core-2-Extreme/Video_player_for_3DS#v153)
-* [v1.5.2](https://github.com/Core-2-Extreme/Video_player_for_3DS#v152)
-* [v1.5.1](https://github.com/Core-2-Extreme/Video_player_for_3DS#v151)
-* [v1.5.0](https://github.com/Core-2-Extreme/Video_player_for_3DS#v150)
-* [v1.4.2](https://github.com/Core-2-Extreme/Video_player_for_3DS#v142)
-* [v1.4.1](https://github.com/Core-2-Extreme/Video_player_for_3DS#v141)
-* [v1.4.0](https://github.com/Core-2-Extreme/Video_player_for_3DS#v140)
-* [v1.3.3](https://github.com/Core-2-Extreme/Video_player_for_3DS#v133)
-* [v1.3.2](https://github.com/Core-2-Extreme/Video_player_for_3DS#v132)
-* [v1.3.1](https://github.com/Core-2-Extreme/Video_player_for_3DS#v131)
-* [v1.3.0](https://github.com/Core-2-Extreme/Video_player_for_3DS#v130)
-* [v1.2.0](https://github.com/Core-2-Extreme/Video_player_for_3DS#v120)
-* [v1.1.1](https://github.com/Core-2-Extreme/Video_player_for_3DS#v111)
-* [v1.1.0](https://github.com/Core-2-Extreme/Video_player_for_3DS#v110)
-* [v1.0.1](https://github.com/Core-2-Extreme/Video_player_for_3DS#v101)
-* [v1.0.0](https://github.com/Core-2-Extreme/Video_player_for_3DS#v100)
+* [v1.8.0](#v180)
+* [v1.7.0](#v170)
+* [v1.6.1](#v161)
+* [v1.6.0](#v160)
+* [v1.5.3](#v153)
+* [v1.5.2](#v152)
+* [v1.5.1](#v151)
+* [v1.5.0](#v150)
+* [v1.4.2](#v142)
+* [v1.4.1](#v141)
+* [v1.4.0](#v140)
+* [v1.3.3](#v133)
+* [v1.3.2](#v132)
+* [v1.3.1](#v131)
+* [v1.3.0](#v130)
+* [v1.2.0](#v120)
+* [v1.1.1](#v111)
+* [v1.1.0](#v110)
+* [v1.0.1](#v101)
+* [v1.0.0](#v100)
 
 ### v1.8.0
 **Changes** \
