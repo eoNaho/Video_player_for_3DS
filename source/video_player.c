@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "system/menu.h"
 #include "system/sem.h"
@@ -31,6 +32,9 @@
 #include "system/util/thread_types.h"
 #include "system/util/util.h"
 #include "system/util/watch.h"
+
+#include "library/lib_library_3ds.h"
+#include "library/lib_ui_3ds.h"
 
 //Defines.
 #define VIDEO_BUFFERS								(uint8_t)(4)
@@ -751,6 +755,8 @@ void Vid_convert_thread(void* arg);
 void Vid_read_packet_thread(void* arg);
 static void Vid_expl_callback(Str_data* file, Str_data* dir);
 static void Vid_expl_cancel_callback(void);
+static void Vid_library_play_callback(const Lib_item* item);
+static Lib_video_codec Vid_library_codec(const char* short_name);
 
 //Variables.
 static Str_data vid_msg[MSG_MAX] = { 0, };
@@ -830,6 +836,8 @@ void Vid_hid(const Hid_info* key)
 
 	if(Util_err_query_show_flag())
 		Util_err_main(key);
+	else if(Lib_ui_3ds_is_open())
+		Lib_ui_3ds_main(key, Lib_library_index(), Vid_library_play_callback);
 	else if(Util_expl_query_show_flag())
 		Util_expl_main(key, config.scroll_speed);
 	else
@@ -1143,9 +1151,13 @@ void Vid_hid(const Hid_info* key)
 				}
 				else if(HID_OPEN_EXPL_CFM(*key))
 				{
-					Util_expl_set_show_flag(true);
-					Util_expl_set_callback(Vid_expl_callback);
-					Util_expl_set_cancel_callback(Vid_expl_cancel_callback);
+					if (!Lib_library_is_initialized()
+					|| !Lib_ui_3ds_open(Lib_library_index()))
+					{
+						Util_expl_set_show_flag(true);
+						Util_expl_set_callback(Vid_expl_callback);
+						Util_expl_set_cancel_callback(Vid_expl_cancel_callback);
+					}
 					//Reset key state on scene change.
 					Util_hid_reset_key_state(HID_KEY_BIT_ALL);
 				}
@@ -1768,12 +1780,21 @@ void Vid_main(void)
 
 	Sem_get_config(&config);
 	Sem_get_state(&state);
-
 	if (config.is_night)
 	{
 		color = DEF_DRAW_WHITE;
 		disabled_color = DEF_DRAW_WEAK_WHITE;
 		back_color = DEF_DRAW_BLACK;
+	}
+
+	if (Lib_ui_3ds_is_open())
+	{
+		Draw_frame_ready();
+		Draw_screen_ready(DRAW_SCREEN_BOTTOM, back_color);
+		Lib_ui_3ds_draw(Lib_library_index(), color, back_color);
+		Draw_bot_ui();
+		Draw_apply_draw();
+		return;
 	}
 
 	//Assign previous frame index first.
@@ -4469,6 +4490,10 @@ void Vid_init_thread(void* arg)
 	Util_str_add(&vid_player.status, "\nLoading settings...");
 	DEF_LOG_RESULT_SMART(result, Vid_load_settings(), (result == DEF_SUCCESS), result);
 
+	Util_str_add(&vid_player.status, "\nLoading library...");
+	DEF_LOG_RESULT_SMART(result, Lib_library_init(), (result == DEF_SUCCESS || result == DEF_ERR_ALREADY_INITIALIZED), result);
+	Lib_ui_3ds_init();
+
 	Util_str_add(&vid_player.status, "\nLoading textures...");
 	vid_player.banner_texture_handle = Draw_get_free_sheet_num();
 	DEF_LOG_RESULT_SMART(result, Draw_load_texture("romfs:/gfx/draw/video_player/banner.t3x",
@@ -4530,6 +4555,9 @@ void Vid_exit_thread(void* arg)
 	DEF_LOG_RESULT_SMART(result, threadJoin(vid_player.read_packet_thread, DEF_THREAD_WAIT_TIME), (result == DEF_SUCCESS), result);
 
 	Util_str_add(&vid_player.status, "\nCleaning up...");
+	Lib_ui_3ds_exit();
+	Lib_library_set_paused(false);
+	Lib_library_exit();
 	threadFree(vid_player.decode_thread);
 	threadFree(vid_player.decode_video_thread);
 	threadFree(vid_player.convert_thread);
@@ -4650,9 +4678,11 @@ void Vid_decode_thread(void* arg)
 	uint32_t audio_bar_pos = 0;
 	double seek_start_pos = 0;
 	Str_data cache_file_name = { 0, };
+	Str_data library_media_path = { 0, };
 
 	Util_file_create_directory((DEF_MENU_MAIN_DIR "saved_pos/"));//Create directory.
 	Util_str_init(&cache_file_name);
+	Util_str_init(&library_media_path);
 
 	while (vid_player.thread_run)
 	{
@@ -4701,6 +4731,9 @@ void Vid_decode_thread(void* arg)
 						Vid_init_subtitle_data();
 						vid_player.state = PLAYER_STATE_PLAYING;
 						vid_player.sub_state = PLAYER_SUB_STATE_NONE;
+						//A library scan is deliberately cooperative: stop its worker
+						//between directory entries while the player owns the console.
+						Lib_library_set_paused(true);
 						is_read_packet_thread_active = false;
 						is_waiting_video_decoder = false;
 
@@ -4719,8 +4752,10 @@ void Vid_decode_thread(void* arg)
 						audio_bar_pos = 0;
 						seek_start_pos = 0;
 						Util_str_clear(&cache_file_name);
+						Util_str_clear(&library_media_path);
 						Util_str_set(&path, vid_player.file.directory);
 						Util_str_add(&path, vid_player.file.name);
+						Util_str_set(&library_media_path, path.buffer);
 
 						//Generate cache file name.
 						if(Util_str_has_data(&path))
@@ -4965,6 +5000,30 @@ void Vid_decode_thread(void* arg)
 						//Set media duration.
 						vid_player.media_duration = DEF_UTIL_S_TO_MS_D(Vid_get_media_duration(vid_player.video_info[EYE_LEFT].duration, vid_player.video_info[EYE_RIGHT].duration, vid_player.audio_info[vid_player.selected_audio_track].duration));
 
+						//Publish decoder metadata to the persistent library. This is a
+						//small synchronous update; scan/probe work remains background work.
+						{
+							Lib_probe_info probe = { 0, };
+							uint32_t duration_ms = (vid_player.media_duration > UINT32_MAX)
+								? UINT32_MAX : (uint32_t)vid_player.media_duration;
+
+							probe.duration_ms = duration_ms;
+							probe.width = (uint16_t)Util_min(vid_player.video_info[EYE_LEFT].width, UINT16_MAX);
+							probe.height = (uint16_t)Util_min(vid_player.video_info[EYE_LEFT].height, UINT16_MAX);
+							probe.fps_x100 = (uint16_t)Util_min(vid_player.video_info[EYE_LEFT].framerate * 100, UINT16_MAX);
+							probe.audio_tracks = vid_player.num_of_audio_tracks;
+							probe.subtitle_tracks = vid_player.num_of_subtitle_tracks;
+							probe.has_video = (bool)(vid_player.num_of_video_tracks > 0);
+							probe.has_audio = (bool)(vid_player.num_of_audio_tracks > 0);
+							probe.is_3d = (bool)(vid_player.num_of_video_tracks > 0
+								&& vid_player.video_info[EYE_LEFT]._3d_type != MEDIA_3D_TYPE_2D);
+
+							probe.video_codec = Vid_library_codec(
+								vid_player.video_info[EYE_LEFT].short_format_name);
+
+							(void)Lib_library_update_probe(library_media_path.buffer, &probe);
+						}
+
 						//Can't play subtitle alone.
 						if(vid_player.num_of_audio_tracks == 0 && vid_player.num_of_video_tracks == 0)
 						{
@@ -5000,11 +5059,26 @@ void Vid_decode_thread(void* arg)
 						//If remember video pos is set, try to find previous playback position.
 						if(vid_player.remember_video_pos)
 						{
+							uint32_t library_position_ms = 0;
+							uint32_t library_duration_ms = 0;
+
+							if(Lib_library_get_progress(library_media_path.buffer,
+							&library_position_ms, &library_duration_ms)
+							&& library_position_ms > 0
+							&& library_position_ms < vid_player.media_duration)
+							{
+								vid_player.seek_pos = library_position_ms;
+								DEF_LOG_RESULT_SMART(result, Util_queue_add(&vid_player.decode_thread_command_queue,
+								DECODE_THREAD_SEEK_REQUEST, NULL, QUEUE_OP_TIMEOUT_US,
+								QUEUE_OPTION_NONE), (result == DEF_SUCCESS), result);
+								DEF_LOG_STRING("Resuming from library index.");
+							}
+
 							uint8_t* saved_data = NULL;
 							uint32_t read_size = 0;
 
-							result = Util_file_load_from_file(cache_file_name.buffer, DEF_MENU_MAIN_DIR "saved_pos/", &saved_data, sizeof(double), 0, &read_size);
-							if(result == DEF_SUCCESS && read_size >= sizeof(double))
+							result = (library_position_ms > 0 ? DEF_ERR_OTHER : Util_file_load_from_file(cache_file_name.buffer, DEF_MENU_MAIN_DIR "saved_pos/", &saved_data, sizeof(double), 0, &read_size));
+							if(library_position_ms == 0 && result == DEF_SUCCESS && read_size >= sizeof(double))
 							{
 								double saved_pos = *(double*)saved_data;
 								if(saved_pos > 0 && saved_pos < vid_player.media_duration)
@@ -5245,20 +5319,31 @@ void Vid_decode_thread(void* arg)
 
 					if(vid_player.remember_video_pos)
 					{
-						if(event == DECODE_THREAD_PLAY_NEXT_REQUEST)//If playback has finished, remove saved time.
-							Util_file_delete_file(cache_file_name.buffer, DEF_MENU_MAIN_DIR "saved_pos/");
-						else//If remember video pos is set, save playback position.
-						{
-							double saved_pos = vid_player.media_current_pos;
-							Str_data time = { 0, };
+						double saved_pos = (event == DECODE_THREAD_PLAY_NEXT_REQUEST)
+							? vid_player.media_duration : vid_player.media_current_pos;
 
-							if(Util_convert_seconds_to_time(DEF_UTIL_MS_TO_S_D(saved_pos), &time) == DEF_SUCCESS)
-								DEF_LOG_FORMAT("Last pos: %s", time.buffer);
-
-							Util_file_save_to_file(cache_file_name.buffer, DEF_MENU_MAIN_DIR "saved_pos/", (uint8_t*)(&saved_pos), sizeof(double), true);
-							Util_str_free(&time);
-						}
+						(void)Lib_library_update_progress(library_media_path.buffer,
+							(saved_pos > UINT32_MAX) ? UINT32_MAX : (uint32_t)saved_pos,
+							(vid_player.media_duration > UINT32_MAX) ? UINT32_MAX : (uint32_t)vid_player.media_duration);
 					}
+
+					if(vid_player.remember_video_pos && event != DECODE_THREAD_PLAY_NEXT_REQUEST)
+					{
+						double saved_pos = vid_player.media_current_pos;
+						Str_data time = { 0, };
+
+						if(Util_convert_seconds_to_time(DEF_UTIL_MS_TO_S_D(saved_pos), &time) == DEF_SUCCESS)
+							DEF_LOG_FORMAT("Last pos: %s", time.buffer);
+
+						//Keep writing the legacy sidecar until the library migration has
+						//been observed in the field; old installations remain readable.
+						Util_file_save_to_file(cache_file_name.buffer, DEF_MENU_MAIN_DIR "saved_pos/", (uint8_t*)(&saved_pos), sizeof(double), true);
+						Util_str_free(&time);
+					}
+					else if(vid_player.remember_video_pos && event == DECODE_THREAD_PLAY_NEXT_REQUEST)
+						Util_file_delete_file(cache_file_name.buffer, DEF_MENU_MAIN_DIR "saved_pos/");
+
+					Lib_library_set_paused(false);
 
 					//Wait for read packet thread (also flush queues).
 					DEF_LOG_RESULT_SMART(result, Util_queue_add(&vid_player.read_packet_thread_command_queue, READ_PACKET_THREAD_ABORT_REQUEST,
@@ -5982,6 +6067,7 @@ void Vid_decode_thread(void* arg)
 	}
 
 	Util_str_free(&cache_file_name);
+	Util_str_free(&library_media_path);
 
 	DEF_LOG_STRING("Thread exit.");
 	threadExit(0);
@@ -6814,4 +6900,59 @@ static void Vid_expl_callback(Str_data* file, Str_data* dir)
 static void Vid_expl_cancel_callback(void)
 {
 	//Do nothing.
+}
+
+static Lib_video_codec Vid_library_codec(const char* short_name)
+{
+	if (!short_name)
+		return LIB_VIDEO_CODEC_UNKNOWN;
+
+	if (strcmp(short_name, "h264") == 0 || strcmp(short_name, "avc") == 0)
+		return LIB_VIDEO_CODEC_H264;
+	if (strcmp(short_name, "mpeg4") == 0)
+		return LIB_VIDEO_CODEC_MPEG4;
+	if (strcmp(short_name, "mpeg2video") == 0)
+		return LIB_VIDEO_CODEC_MPEG2;
+	if (strcmp(short_name, "mpeg1video") == 0)
+		return LIB_VIDEO_CODEC_MPEG1;
+	if (strcmp(short_name, "vp8") == 0)
+		return LIB_VIDEO_CODEC_VP8;
+	if (strcmp(short_name, "vp9") == 0)
+		return LIB_VIDEO_CODEC_VP9;
+	if (strcmp(short_name, "av1") == 0)
+		return LIB_VIDEO_CODEC_AV1;
+
+	return LIB_VIDEO_CODEC_UNKNOWN;
+}
+
+static void Vid_library_play_callback(const Lib_item* item)
+{
+	Vid_file* file_data = NULL;
+	const char* slash = NULL;
+
+	if (!item || !item->path)
+		return;
+
+	file_data = (Vid_file*)calloc(1, sizeof(*file_data));
+	if (!file_data)
+		return;
+
+	slash = strrchr(item->path, '/');
+	if (slash)
+	{
+		size_t directory_size = (size_t)(slash - item->path) + 1;
+		if (directory_size >= sizeof(file_data->directory))
+			directory_size = sizeof(file_data->directory) - 1;
+		memcpy(file_data->directory, item->path, directory_size);
+		file_data->directory[directory_size] = 0x00;
+		snprintf(file_data->name, sizeof(file_data->name), "%s", slash + 1);
+	}
+	else
+		snprintf(file_data->name, sizeof(file_data->name), "%s", item->path);
+
+	file_data->index = UINT32_MAX;
+	if (Util_queue_add(&vid_player.decode_thread_command_queue,
+	DECODE_THREAD_PLAY_REQUEST, file_data, QUEUE_OP_TIMEOUT_US,
+	QUEUE_OPTION_NONE) != DEF_SUCCESS)
+		free(file_data);
 }

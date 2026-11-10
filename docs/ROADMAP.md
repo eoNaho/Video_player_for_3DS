@@ -24,10 +24,11 @@ segundo plano (scan, probe, miniaturas) cede CPU ao player.
 - **Fase 1 — Biblioteca MVP:** núcleo portável concluído (`lib_index`, `lib_name`,
   `lib_queue`, `lib_scan`, `lib_sort`, `lib_view`, `lib_migrate`, `lib_thumb`, `lib_ui`
   + testes no PC), com adaptadores 3DS de varredura (`lib_scan_3ds`), armazenamento
-  (`lib_store_3ds`) e migração de `saved_pos` (`lib_migrate_3ds`). Faltam probe,
-  integração com `video_player.c`, abas Todos/Continuar assistindo e fila com os 4 modos.
-- **Fase 2 — Metadados e miniaturas:** probe em segundo plano com pausa no playback,
-  miniaturas sidecar, grade, etiqueta de compatibilidade.
+   (`lib_store_3ds`) e migração de `saved_pos` (`lib_migrate_3ds`). Probe, integração
+   com `video_player.c`, retomada persistente, abas e tela 3DS leve já estão implementados;
+   falta validar o alvo no console.
+- **Fase 2 — Metadados e miniaturas:** probe e etiqueta de compatibilidade já estão
+   integrados; faltam miniaturas sidecar, grade e geração no PC via FTP.
 - **Fase 3 — Player e configurações:** tokens de design, alvos de toque ≥ 24 px,
   configurações por categoria, pt-BR.
 - **Fase 4 — Otimização guiada por medição:** só o que o baseline justificar.
@@ -38,7 +39,7 @@ segundo plano (scan, probe, miniaturas) cede CPU ao player.
 Novos módulos em `source/library/` (adicionar ao `SOURCES`):
 `lib_index.c`, `lib_scan.c`, `lib_scan_3ds.c`, `lib_sort.c`, `lib_view.c`,
 `lib_migrate.c`, `lib_migrate_3ds.c`, `lib_store_3ds.c`, `lib_thumb.c`,
-`lib_ui.c`, `lib_ui_3ds.c`. A lógica pura (índice, hash, parser de nomes, fila,
+`lib_ui.c`, `lib_ui_3ds.c`, `lib_library_3ds.c`, `lib_probe.c`. A lógica pura (índice, hash, parser de nomes, fila,
 ordenação, varredura/diff, abas, migração, navegação) deve compilar no PC com
 `gcc` para testes unitários.
 
@@ -50,7 +51,8 @@ leitura/gravação de `saved_pos/` e `vid_settings.txt` (V7 aditiva).
 
 1. Explorador atual continua como fallback.
 2. Configurações antigas continuam legíveis.
-3. Nenhuma alteração na decode thread é necessária para a biblioteca.
+3. A ponte com a decode thread deve permanecer limitada a pausa cooperativa,
+   metadados, retomada e gravação de progresso; o algoritmo interno de decode não muda.
 4. Toda otimização registra número antes/depois em `BASELINE.md`.
 5. Fork permanece GPLv3 com créditos ao projeto original.
 
@@ -67,4 +69,3 @@ Cobre hash de id, parser de título/temporada/episódio/ano, migração do nome 
 varredura (renome/carência), ordenação natural, abas da biblioteca, navegação
 da tela, posições legadas e nomes de miniatura, além dos modos da fila
 (incluindo baralho sem repetição).
-

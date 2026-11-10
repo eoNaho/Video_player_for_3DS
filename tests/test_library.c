@@ -7,6 +7,7 @@
 #include "library/lib_migrate.h"
 #include "library/lib_thumb.h"
 #include "library/lib_ui.h"
+#include "library/lib_probe.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -718,6 +719,70 @@ static void Test_ui(void)
 	Lib_index_free(&index);
 }
 
+static void Test_probe(void)
+{
+	Lib_index index = { 0, };
+	Lib_item* item = NULL;
+	Lib_probe_info info = { 0, };
+	Lib_probe_info empty = { 0, };
+
+	Lib_index_init(&index);
+	item = Lib_index_upsert(&index, "/v/movie.mkv", 10, 0, 1);
+	CHECK(item != NULL);
+	if (!item)
+	{
+		Lib_index_free(&index);
+		return;
+	}
+
+	item->duration_ms = 111;
+	item->width = 222;
+	item->flags |= LIB_ITEM_FLAG_FAVORITE;
+	Lib_probe_apply(item, &empty, LIB_PROBE_WATCHED_GUARD_MS);
+	CHECK(item->duration_ms == 111);
+	CHECK(item->width == 222);
+	CHECK(item->flags == LIB_ITEM_FLAG_FAVORITE);
+	Lib_probe_apply(NULL, &info, LIB_PROBE_WATCHED_GUARD_MS);
+	Lib_probe_apply(item, NULL, LIB_PROBE_WATCHED_GUARD_MS);
+
+	info.duration_ms = 120000;
+	info.width = 400;
+	info.height = 240;
+	info.fps_x100 = 2997;
+	info.video_codec = LIB_VIDEO_CODEC_MPEG4;
+	info.audio_tracks = 2;
+	info.subtitle_tracks = 1;
+	info.has_video = true;
+	info.has_audio = true;
+	info.is_3d = true;
+	Lib_probe_apply(item, &info, LIB_PROBE_WATCHED_GUARD_MS);
+	CHECK(item->duration_ms == 120000);
+	CHECK(item->width == 400 && item->height == 240 && item->fps_x100 == 2997);
+	CHECK(item->video_codec == LIB_VIDEO_CODEC_MPEG4);
+	CHECK(item->audio_tracks == 2 && item->subtitle_tracks == 1);
+	CHECK((item->flags & LIB_ITEM_FLAG_3D) != 0);
+	CHECK((item->flags & LIB_ITEM_FLAG_AUDIO_ONLY) == 0);
+	CHECK((item->flags & LIB_ITEM_FLAG_FAVORITE) != 0);
+
+	info.is_3d = false;
+	info.has_video = false;
+	info.has_audio = true;
+	Lib_probe_apply(item, &info, LIB_PROBE_WATCHED_GUARD_MS);
+	CHECK((item->flags & LIB_ITEM_FLAG_3D) == 0);
+	CHECK((item->flags & LIB_ITEM_FLAG_AUDIO_ONLY) != 0);
+
+	item->position_ms = 116000;
+	Lib_probe_apply(item, &info, LIB_PROBE_WATCHED_GUARD_MS);
+	CHECK((item->flags & LIB_ITEM_FLAG_WATCHED) != 0);
+
+	item->flags &= (Lib_item_flags)~LIB_ITEM_FLAG_WATCHED;
+	item->position_ms = 10000;
+	Lib_probe_apply(item, &info, LIB_PROBE_WATCHED_GUARD_MS);
+	CHECK((item->flags & LIB_ITEM_FLAG_WATCHED) == 0);
+
+	Lib_index_free(&index);
+}
+
 int main(void)
 {
 	Test_hash();
@@ -736,6 +801,7 @@ int main(void)
 	Test_migrate();
 	Test_thumb();
 	Test_ui();
+	Test_probe();
 
 	if (tests_failed != 0)
 	{

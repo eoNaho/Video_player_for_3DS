@@ -190,6 +190,20 @@ Lib_item* Lib_index_find_path(Lib_index* index, const char* path)
 	return NULL;
 }
 
+const Lib_item* Lib_index_find_path_const(const Lib_index* index, const char* path)
+{
+	if (!index || !path)
+		return NULL;
+
+	for (size_t i = 0; i < index->count; i++)
+	{
+		if (index->items[i].path && strcmp(index->items[i].path, path) == 0)
+			return &index->items[i];
+	}
+
+	return NULL;
+}
+
 Lib_item* Lib_index_upsert(Lib_index* index, const char* path, uint64_t size, uint64_t mtime, uint64_t id)
 {
 	Lib_item* item = NULL;

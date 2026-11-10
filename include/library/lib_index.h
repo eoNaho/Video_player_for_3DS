@@ -84,6 +84,8 @@ const Lib_item* Lib_index_find_id_const(const Lib_index* index, uint64_t id);
 
 Lib_item* Lib_index_find_path(Lib_index* index, const char* path);
 
+const Lib_item* Lib_index_find_path_const(const Lib_index* index, const char* path);
+
 //Insert or update by id (then by path). Returns the item or NULL on error.
 Lib_item* Lib_index_upsert(Lib_index* index, const char* path, uint64_t size, uint64_t mtime, uint64_t id);
 

@@ -12,7 +12,8 @@ SOURCES := test_library.c \
 	../source/library/lib_view.c \
 	../source/library/lib_migrate.c \
 	../source/library/lib_thumb.c \
-	../source/library/lib_ui.c
+	../source/library/lib_ui.c \
+	../source/library/lib_probe.c
 
 HEADERS := ../include/library/lib_index.h \
 	../include/library/lib_name.h \
@@ -22,7 +23,8 @@ HEADERS := ../include/library/lib_index.h \
 	../include/library/lib_view.h \
 	../include/library/lib_migrate.h \
 	../include/library/lib_thumb.h \
-	../include/library/lib_ui.h
+	../include/library/lib_ui.h \
+	../include/library/lib_probe.h
 
 .PHONY: all run clean
 
