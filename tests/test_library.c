@@ -6,6 +6,7 @@
 #include "library/lib_queue.h"
 #include "library/lib_migrate.h"
 #include "library/lib_thumb.h"
+#include "library/lib_ui.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -642,6 +643,81 @@ static void Test_thumb(void)
 	CHECK(!Lib_thumb_is_image(NULL));
 }
 
+static void Test_ui(void)
+{
+	Lib_index index = { 0, };
+	Lib_ui ui = { 0, };
+	const Lib_item* item = NULL;
+	uint64_t id = 0;
+
+	Lib_index_init(&index);
+	Lib_ui_init(&ui);
+	CHECK(Lib_ui_set_rows(&ui, 0) == false);
+	CHECK(Lib_ui_set_rows(&ui, LIB_UI_MAX_ROWS + 1) == false);
+	CHECK(Lib_ui_set_rows(&ui, 3));
+
+	CHECK(Lib_index_upsert(&index, "/v/E1.mkv", 1, 0, 1) != NULL);
+	CHECK(Lib_index_upsert(&index, "/v/E2.mkv", 2, 0, 2) != NULL);
+	CHECK(Lib_index_upsert(&index, "/v/E3.mkv", 3, 0, 3) != NULL);
+	CHECK(Lib_index_upsert(&index, "/v/E4.mkv", 4, 0, 4) != NULL);
+	CHECK(Lib_index_upsert(&index, "/v/E5.mkv", 5, 0, 5) != NULL);
+	if (index.count != 5)
+	{
+		Lib_ui_free(&ui);
+		Lib_index_free(&index);
+		return;
+	}
+
+	CHECK(Lib_ui_rebuild(&ui, &index));
+	CHECK(ui.count == 5 && ui.cursor == 0 && ui.offset == 0);
+	item = Lib_ui_current(&ui, &index);
+	CHECK(item != NULL);
+	CHECK(item && strcmp(Lib_item_get_title(item), "E1") == 0);
+
+	Lib_ui_move(&ui, 10);
+	CHECK(ui.cursor == 4 && ui.offset == 2);
+	Lib_ui_move(&ui, -10);
+	CHECK(ui.cursor == 0 && ui.offset == 0);
+
+	Lib_ui_page(&ui, true);
+	CHECK(ui.cursor == 2 && ui.offset == 0);
+	Lib_ui_page(&ui, true);
+	CHECK(ui.cursor == 4);
+	Lib_ui_page(&ui, false);
+	CHECK(ui.cursor == 2);
+
+	CHECK(Lib_ui_select_visible(&ui, 2));
+	CHECK(ui.cursor == 2);
+	CHECK(!Lib_ui_select_visible(&ui, 3));
+	CHECK(Lib_ui_id_at_visible(&ui, 0, &id));
+	CHECK(id == ui.ids[ui.offset]);
+	CHECK(Lib_ui_id_at_visible(&ui, 2, &id));
+	CHECK(id == ui.ids[2]);
+	CHECK(!Lib_ui_id_at_visible(&ui, 3, &id));
+
+	//Rebuild keeps the selected id.
+	id = ui.ids[ui.cursor];
+	CHECK(Lib_ui_rebuild(&ui, &index));
+	CHECK(ui.cursor < ui.count && ui.ids[ui.cursor] == id);
+
+	//Tab change resets the cursor and filters.
+	index.items[0].position_ms = 1000;
+	CHECK(Lib_ui_set_tab(&ui, LIB_VIEW_TAB_CONTINUE, &index));
+	CHECK(ui.count == 1 && ui.cursor == 0 && ui.offset == 0);
+	CHECK(Lib_ui_set_tab(&ui, LIB_VIEW_TAB_ALL, &index));
+	CHECK(ui.count == 5);
+
+	//Selecting the last item and shrinking the list clamps.
+	Lib_ui_move(&ui, 10);
+	CHECK(Lib_index_remove_id(&index, index.items[4].id));
+	CHECK(Lib_ui_rebuild(&ui, &index));
+	CHECK(ui.count == 4 && ui.cursor == 3);
+	CHECK(ui.cursor >= ui.offset && ui.cursor < (ui.offset + ui.rows));
+
+	Lib_ui_free(&ui);
+	Lib_index_free(&index);
+}
+
 int main(void)
 {
 	Test_hash();
@@ -659,6 +735,7 @@ int main(void)
 	Test_view();
 	Test_migrate();
 	Test_thumb();
+	Test_ui();
 
 	if (tests_failed != 0)
 	{
