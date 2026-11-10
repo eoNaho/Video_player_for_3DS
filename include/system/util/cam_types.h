@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "system/util/log_enum_types.h"
 
-#define DEF_CAM_API_ENABLE				/*(bool)(*/true/*)*/	//Enable camera API.
+#define DEF_CAM_API_ENABLE				/*(bool)(*/false/*)*/	//Enable camera API.
 
 typedef enum
 {

@@ -36,10 +36,12 @@
 #include "video_player.h"
 
 //Defines.
+#if DEF_SEM_ENABLE_SEND_APP_INFO
 #define APP_INFO					/*(const char*)(*/"Video_player_for_3ds/" DEF_MENU_CURRENT_APP_VER/*)*/
-#define SEND_APP_INFO_URL			/*(const char*)(*/"https://script.google.com/macros/s/AKfycbyn_blFyKWXCgJr6NIF8x6ETs7CHRN5FXKYEAAIrzV6jPYcCkI/exec"/*)*/
+#define SEND_APP_INFO_URL			/*(const char*)(*/""/*)*/	//This fork has no telemetry endpoint.
 
 #define SEND_INFO_FMT_VER			(uint32_t)(1)			//Version of system info.
+#endif //DEF_SEM_ENABLE_SEND_APP_INFO
 
 #define NUM_OF_CALLBACKS			(uint16_t)(32)			//Number of worker thread callbacks.
 #define HTTP_POST_BUFFER_SIZE		(uint32_t)(0x80000)		//Buffer size for httpc.
@@ -107,8 +109,10 @@ static uint32_t Menu_update_main_directory(void);
 static void Menu_hid_callback(void);
 void Menu_worker_thread(void* arg);
 
-#if (DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
+#if ((DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE) && DEF_SEM_ENABLE_SEND_APP_INFO)
 void Menu_send_app_info_thread(void* arg);
+#endif //((DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE) && DEF_SEM_ENABLE_SEND_APP_INFO)
+#if (DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
 void Menu_update_thread(void* arg);
 #endif //(DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
 
@@ -133,7 +137,10 @@ static Draw_image_data menu_sapp_close_button[APP_MAX] = { 0, };
 static Draw_image_data menu_sem_button = { 0, };
 
 #if (DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
-static Thread menu_send_app_info_thread = NULL, menu_update_thread = NULL;
+#if DEF_SEM_ENABLE_SEND_APP_INFO
+static Thread menu_send_app_info_thread = NULL;
+#endif //DEF_SEM_ENABLE_SEND_APP_INFO
+static Thread menu_update_thread = NULL;
 #endif //(DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
 
 //Code.
@@ -276,8 +283,10 @@ void Menu_init(void)
 
 #if (DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
 	menu_update_thread = threadCreate(Menu_update_thread, NULL, DEF_THREAD_STACKSIZE, DEF_THREAD_PRIORITY_NORMAL, 1, true);
+#if DEF_SEM_ENABLE_SEND_APP_INFO
 	if (config.is_send_info_allowed)
 		menu_send_app_info_thread = threadCreate(Menu_send_app_info_thread, NULL, DEF_THREAD_STACKSIZE, DEF_THREAD_PRIORITY_LOW, 1, true);
+#endif //DEF_SEM_ENABLE_SEND_APP_INFO
 #endif //(DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
 
 	//Load sub application icons.
@@ -435,7 +444,9 @@ void Menu_exit(void)
 	threadFree(menu_worker_thread);
 
 #if (DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
+#if DEF_SEM_ENABLE_SEND_APP_INFO
 	DEF_LOG_RESULT_SMART(result, threadJoin(menu_send_app_info_thread, DEF_THREAD_WAIT_TIME), (result == DEF_SUCCESS), result);
+#endif //DEF_SEM_ENABLE_SEND_APP_INFO
 	DEF_LOG_RESULT_SMART(result, threadJoin(menu_update_thread, DEF_THREAD_WAIT_TIME), (result == DEF_SUCCESS), result);
 #endif //(DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
 
@@ -1311,7 +1322,7 @@ void Menu_worker_thread(void* arg)
 	threadExit(0);
 }
 
-#if (DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
+#if ((DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE) && DEF_SEM_ENABLE_SEND_APP_INFO)
 void Menu_send_app_info_thread(void* arg)
 {
 	(void)arg;
@@ -1395,7 +1406,9 @@ void Menu_send_app_info_thread(void* arg)
 	DEF_LOG_STRING("Thread exit.");
 	threadExit(0);
 }
+#endif //((DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE) && DEF_SEM_ENABLE_SEND_APP_INFO)
 
+#if (DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
 void Menu_update_thread(void* arg)
 {
 	(void)arg;

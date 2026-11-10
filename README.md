@@ -1,5 +1,11 @@
 # Video player for 3DS
 
+> [!IMPORTANT]
+> **Fork eoNaho** — personal fork of [Core-2-Extreme/Video_player_for_3DS](https://github.com/Core-2-Extreme/Video_player_for_3DS), based on v1.8.0 (GPLv3).
+> It has its own update channel (`eoNaho/Video_player_for_3DS`), keeps the `/3ds/Video_player/` data directory, and does **not** send telemetry to the upstream server.
+> Camera, microphone and the video/audio encoders are disabled in this build.
+> Library, resume-by-id, new UI and Old 3DS optimizations are tracked in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 [![Total downloads](https://img.shields.io/github/downloads/Core-2-Extreme/Video_player_for_3DS/total?color=red&style=flat-square)](https://github.com/Core-2-Extreme/Video_player_for_3DS/releases)
 [![Commits since latest release](https://img.shields.io/github/commits-since/Core-2-Extreme/Video_player_for_3DS/latest?color=orange&style=flat-square)](https://github.com/Core-2-Extreme/Video_player_for_3DS/commits)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/Core-2-Extreme/Video_player_for_3DS?color=gold&style=flat-square)](https://github.com/Core-2-Extreme/Video_player_for_3DS/commits)

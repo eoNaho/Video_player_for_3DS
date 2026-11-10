@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "system/util/log_enum_types.h"
 
-#define DEF_MIC_API_ENABLE				/*(bool)(*/true/*)*/	//Enable mic API.
+#define DEF_MIC_API_ENABLE				/*(bool)(*/false/*)*/	//Enable mic API.
 
 typedef enum
 {

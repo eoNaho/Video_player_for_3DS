@@ -4,9 +4,9 @@
 #include <stdint.h>
 
 #define DEF_MENU_MAIN_DIR				/*(const char*)(*/"/3ds/Video_player/"/*)*/
-#define DEF_MENU_CURRENT_APP_NAME_PLAIN	/*(const char*)(*/"Video player for 3DS"/*)*/
-#define DEF_MENU_CURRENT_APP_VER		/*(const char*)(*/"1.8.0"/*)*/
-#define DEF_MENU_CURRENT_APP_VER_INT	(uint32_t)(1152)
+#define DEF_MENU_CURRENT_APP_NAME_PLAIN	/*(const char*)(*/"Video Player 3DS (eoNaho)"/*)*/
+#define DEF_MENU_CURRENT_APP_VER		/*(const char*)(*/"2.0.0"/*)*/
+#define DEF_MENU_CURRENT_APP_VER_INT	(uint32_t)(2000)
 
 bool Menu_query_must_exit_flag(void);
 

@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include "system/util/hid_types.h"
 
-#define DEF_SEM_CHECK_UPDATE_URL		/*(const char*)(*/"https://raw.githubusercontent.com/Core-2-Extreme/Video_player_for_3DS/refs/heads/main/updater/info.txt"/*)*/
+//Fork eoNaho: the updater must only ever point at this fork, never at upstream,
+//otherwise it would replace this build with the original app.
+#define DEF_SEM_CHECK_UPDATE_URL		/*(const char*)(*/"https://raw.githubusercontent.com/eoNaho/Video_player_for_3DS/refs/heads/main/updater/info.txt"/*)*/
 
 #define DEF_SEM_ENABLE_ICON
 //#define DEF_SEM_ENABLE_NAME
@@ -43,6 +45,8 @@ typedef uint8_t Sem_model;
 #define DEF_SEM_ENABLE_SCREEN_RECORDER		/*(bool)(*/false/*)*/
 //You need to enable DEF_CURL_API_ENABLE as well to use updater.
 #define DEF_SEM_ENABLE_UPDATER				/*(bool)(*/true/*)*/
+//Anonymous app info is posted to the original author's server, so this fork never sends it.
+#define DEF_SEM_ENABLE_SEND_APP_INFO		/*(bool)(*/false/*)*/
 
 typedef struct
 {

@@ -40,10 +40,10 @@ GRAPHICS	:=	gfx
 ROMFS		:=	romfs
 GFXBUILD	:=	$(ROMFS)/gfx
 #---------------------------------------------------------------------------------
-APP_VER				:= 1152
-APP_TITLE			:= Video player for 3DS
-APP_DESCRIPTION		:= Video player for 3DS v1.8.0
-APP_AUTHOR			:= Core_2_Extreme
+APP_VER				:= 2000
+APP_TITLE			:= Video Player 3DS (eoNaho)
+APP_DESCRIPTION		:= Video Player for 3DS v2.0.0 - eoNaho fork
+APP_AUTHOR			:= eoNaho
 PRODUCT_CODE		:= CTR-Vid
 UNIQUE_ID			:= 0xEC600
 
