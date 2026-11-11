@@ -75,10 +75,6 @@
 #if (defined(DEF_VID_ENABLE) || defined(DEF_FTPD_ENABLE) || defined(DEF_SAPP2_ENABLE) || defined(DEF_SAPP3_ENABLE) || defined(DEF_SAPP4_ENABLE) || defined(DEF_SAPP5_ENABLE) || defined(DEF_SAPP6_ENABLE) || defined(DEF_SAPP7_ENABLE))
 #define FONT_SIZE_CLOSE_BUTTON		(float)(15.00)	//Font size for close buttons.
 #endif //(defined(DEF_VID_ENABLE) || defined(DEF_FTPD_ENABLE) || defined(DEF_SAPP2_ENABLE) || defined(DEF_SAPP3_ENABLE) || defined(DEF_SAPP4_ENABLE) || defined(DEF_SAPP5_ENABLE) || defined(DEF_SAPP6_ENABLE) || defined(DEF_SAPP7_ENABLE))
-#if (defined(DEF_VID_ENABLE_NAME) || defined(DEF_FTPD_ENABLE_NAME) || defined(DEF_SAPP2_ENABLE_NAME) || defined(DEF_SAPP3_ENABLE_NAME) || defined(DEF_SAPP4_ENABLE_NAME) || defined(DEF_SAPP5_ENABLE_NAME) || defined(DEF_SAPP6_ENABLE_NAME) || defined(DEF_SAPP7_ENABLE_NAME))
-#define FONT_SIZE_SUB_APP_NAME		(float)(13.50)	//Font size for sub application names.
-#endif //(defined(DEF_VID_ENABLE_NAME) || defined(DEF_FTPD_ENABLE_NAME) || defined(DEF_SAPP2_ENABLE_NAME) || defined(DEF_SAPP3_ENABLE_NAME) || defined(DEF_SAPP4_ENABLE_NAME) || defined(DEF_SAPP5_ENABLE_NAME) || defined(DEF_SAPP6_ENABLE_NAME) || defined(DEF_SAPP7_ENABLE_NAME))
-
 //Typedefs.
 typedef enum
 {
@@ -138,23 +134,35 @@ static Draw_image_data menu_sapp_button[APP_MAX] = { 0, };
 static Draw_image_data menu_sapp_close_button[APP_MAX] = { 0, };
 static Draw_image_data menu_sem_button = { 0, };
 
-static uint32_t Menu_app_text_color(Menu_app app, uint32_t default_color)
+static void Menu_draw_app_tile(Draw_image_data* button, float x, float y, float width, float height)
 {
-	return menu_sapp_button[app].selected
-		? (menu_dark_theme ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_LIGHT_ACCENT)
-		: default_color;
+	uint32_t surface = menu_dark_theme ? UI_THEME_COLOR_SURFACE : UI_THEME_COLOR_LIGHT_SURFACE;
+	uint32_t surface_alt = menu_dark_theme ? UI_THEME_COLOR_SURFACE_ALT : UI_THEME_COLOR_LIGHT_SURFACE_ALT;
+	Draw_texture(button, button->selected ? surface_alt : surface,
+	x, y, width, height);
 }
 
-static void Menu_draw_app_tile(Draw_image_data* button, float x, float y, float width, float height)
+static void Menu_draw_app_label(Draw_image_data* button, const char* label,
+	float x, float y, float width, float height)
 {
 	Draw_image_data background = Draw_get_empty_image();
 	uint32_t surface = menu_dark_theme ? UI_THEME_COLOR_SURFACE : UI_THEME_COLOR_LIGHT_SURFACE;
-	uint32_t surface_alt = menu_dark_theme ? UI_THEME_COLOR_SURFACE_ALT : UI_THEME_COLOR_LIGHT_SURFACE_ALT;
+	uint32_t text = menu_dark_theme ? UI_THEME_COLOR_TEXT : UI_THEME_COLOR_LIGHT_TEXT;
 	uint32_t accent = menu_dark_theme ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_LIGHT_ACCENT;
-	Draw_texture(button, button->selected ? surface_alt : surface,
-	x, y, width, height);
+	float label_height = (height >= 80 ? 22 : 18);
+	float rail_height = 3;
+
+	if (!button)
+		return;
+	if (label && label[0] != 0)
+	{
+		Draw_texture(&background, surface, x, y + height - label_height, width, label_height);
+		Draw_align_c(label, x + 2, y + height - label_height, UI_THEME_FONT_CAPTION,
+		button->selected ? accent : text, DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER,
+		width - 4, label_height - rail_height);
+	}
 	if (button->selected)
-		Draw_texture(&background, accent, x, y, width, 3);
+		Draw_texture(&background, accent, x, y + height - rail_height, width, rail_height);
 }
 
 #if (DEF_CURL_API_ENABLE || DEF_HTTPC_API_ENABLE)
@@ -664,7 +672,9 @@ void Menu_main(void)
 			Draw_texture(&menu_icon_image[APP_VID], DEF_DRAW_NO_COLOR, 110, 60, 100, 100);
 #endif //DEF_VID_ENABLE_ICON
 #ifdef DEF_VID_ENABLE_NAME
-			Draw_align_c(DEF_VID_NAME, 110, 60, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_VID, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 100, 100);
+			Menu_draw_app_label(&menu_sapp_button[APP_VID], DEF_VID_NAME, 110, 60, 100, 100);
+#else
+			Menu_draw_app_label(&menu_sapp_button[APP_VID], NULL, 110, 60, 100, 100);
 #endif //DEF_VID_ENABLE_NAME
 
 			if(Vid_query_init_flag())
@@ -681,7 +691,9 @@ void Menu_main(void)
 			Draw_texture(&menu_icon_image[APP_FTPD], DEF_DRAW_NO_COLOR, 0, 0, 60, 60);
 #endif //DEF_FTPD_ENABLE_ICON
 #ifdef DEF_FTPD_ENABLE_NAME
-			Draw_align_c(DEF_FTPD_NAME, 0, 0, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_FTPD, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Menu_draw_app_label(&menu_sapp_button[APP_FTPD], DEF_FTPD_NAME, 0, 0, 60, 60);
+#else
+			Menu_draw_app_label(&menu_sapp_button[APP_FTPD], NULL, 0, 0, 60, 60);
 #endif //DEF_FTPD_ENABLE_NAME
 
 			if(Ftpd_query_init_flag())
@@ -698,7 +710,9 @@ void Menu_main(void)
 			Draw_texture(&menu_icon_image[APP_2], DEF_DRAW_NO_COLOR, 160, 0, 60, 60);
 #endif //DEF_SAPP2_ENABLE_ICON
 #ifdef DEF_SAPP2_ENABLE_NAME
-			Draw_align_c(DEF_SAPP2_NAME, 160, 0, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_2, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Menu_draw_app_label(&menu_sapp_button[APP_2], DEF_SAPP2_NAME, 160, 0, 60, 60);
+#else
+			Menu_draw_app_label(&menu_sapp_button[APP_2], NULL, 160, 0, 60, 60);
 #endif //DEF_SAPP2_ENABLE_NAME
 
 			if(Sapp2_query_init_flag())
@@ -715,7 +729,9 @@ void Menu_main(void)
 			Draw_texture(&menu_icon_image[APP_3], DEF_DRAW_NO_COLOR, 240, 0, 60, 60);
 #endif //DEF_SAPP3_ENABLE_ICON
 #ifdef DEF_SAPP3_ENABLE_NAME
-			Draw_align_c(DEF_SAPP3_NAME, 240, 0, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_3, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Menu_draw_app_label(&menu_sapp_button[APP_3], DEF_SAPP3_NAME, 240, 0, 60, 60);
+#else
+			Menu_draw_app_label(&menu_sapp_button[APP_3], NULL, 240, 0, 60, 60);
 #endif //DEF_SAPP3_ENABLE_NAME
 
 			if(Sapp3_query_init_flag())
@@ -732,7 +748,9 @@ void Menu_main(void)
 			Draw_texture(&menu_icon_image[APP_4], DEF_DRAW_NO_COLOR, 0, 80, 60, 60);
 #endif //DEF_SAPP4_ENABLE_ICON
 #ifdef DEF_SAPP4_ENABLE_NAME
-			Draw_align_c(DEF_SAPP4_NAME, 0, 80, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_4, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Menu_draw_app_label(&menu_sapp_button[APP_4], DEF_SAPP4_NAME, 0, 80, 60, 60);
+#else
+			Menu_draw_app_label(&menu_sapp_button[APP_4], NULL, 0, 80, 60, 60);
 #endif //DEF_SAPP4_ENABLE_NAME
 
 			if(Sapp4_query_init_flag())
@@ -743,36 +761,40 @@ void Menu_main(void)
 #endif //DEF_SAPP4_ENABLE
 
 #ifdef DEF_SAPP5_ENABLE
-			Menu_draw_app_tile(&menu_sapp_button[APP_5], 80, 80, 60, 60);
+			Menu_draw_app_tile(&menu_sapp_button[APP_5], 80, 160, 60, 60);
 
 #ifdef DEF_SAPP5_ENABLE_ICON
-			Draw_texture(&menu_icon_image[APP_5], DEF_DRAW_NO_COLOR, 80, 80, 60, 60);
+			Draw_texture(&menu_icon_image[APP_5], DEF_DRAW_NO_COLOR, 80, 160, 60, 60);
 #endif //DEF_SAPP5_ENABLE_ICON
 #ifdef DEF_SAPP5_ENABLE_NAME
-			Draw_align_c(DEF_SAPP5_NAME, 80, 80, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_5, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Menu_draw_app_label(&menu_sapp_button[APP_5], DEF_SAPP5_NAME, 80, 160, 60, 60);
+#else
+			Menu_draw_app_label(&menu_sapp_button[APP_5], NULL, 80, 160, 60, 60);
 #endif //DEF_SAPP5_ENABLE_NAME
 
 			if(Sapp5_query_init_flag())
 			{
-				Draw_texture(&menu_sapp_close_button[APP_5], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 125, 80, 15, 15.0);
-				Draw_c("X", 127.5, 80, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
+				Draw_texture(&menu_sapp_close_button[APP_5], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 125, 160, 15, 15.0);
+				Draw_c("X", 127.5, 160, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
 			}
 #endif //DEF_SAPP5_ENABLE
 
 #ifdef DEF_SAPP6_ENABLE
-			Menu_draw_app_tile(&menu_sapp_button[APP_6], 160, 80, 60, 60);
+			Menu_draw_app_tile(&menu_sapp_button[APP_6], 160, 160, 60, 60);
 
 #ifdef DEF_SAPP6_ENABLE_ICON
-			Draw_texture(&menu_icon_image[APP_6], DEF_DRAW_NO_COLOR, 160, 80, 60, 60);
+			Draw_texture(&menu_icon_image[APP_6], DEF_DRAW_NO_COLOR, 160, 160, 60, 60);
 #endif //DEF_SAPP6_ENABLE_ICON
 #ifdef DEF_SAPP6_ENABLE_NAME
-			Draw_align_c(DEF_SAPP6_NAME, 160, 80, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_6, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Menu_draw_app_label(&menu_sapp_button[APP_6], DEF_SAPP6_NAME, 160, 160, 60, 60);
+#else
+			Menu_draw_app_label(&menu_sapp_button[APP_6], NULL, 160, 160, 60, 60);
 #endif //DEF_SAPP6_ENABLE_NAME
 
 			if(Sapp6_query_init_flag())
 			{
-				Draw_texture(&menu_sapp_close_button[APP_6], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 205, 80, 15, 15.0);
-				Draw_c("X", 207.5, 80, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
+				Draw_texture(&menu_sapp_close_button[APP_6], config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER, 205, 160, 15, 15.0);
+				Draw_c("X", 207.5, 160, FONT_SIZE_CLOSE_BUTTON, config.is_night ? UI_THEME_COLOR_DANGER : UI_THEME_COLOR_LIGHT_DANGER);
 			}
 #endif //DEF_SAPP6_ENABLE
 
@@ -783,7 +805,9 @@ void Menu_main(void)
 			Draw_texture(&menu_icon_image[APP_7], DEF_DRAW_NO_COLOR, 240, 80, 60, 60);
 #endif //DEF_SAPP7_ENABLE_ICON
 #ifdef DEF_SAPP7_ENABLE_NAME
-			Draw_align_c(DEF_SAPP7_NAME, 240, 80, FONT_SIZE_SUB_APP_NAME, Menu_app_text_color(APP_7, color), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 60, 60);
+			Menu_draw_app_label(&menu_sapp_button[APP_7], DEF_SAPP7_NAME, 240, 80, 60, 60);
+#else
+			Menu_draw_app_label(&menu_sapp_button[APP_7], NULL, 240, 80, 60, 60);
 #endif //DEF_SAPP7_ENABLE_NAME
 
 			if(Sapp7_query_init_flag())
@@ -799,8 +823,9 @@ void Menu_main(void)
 			Draw_texture(&menu_sem_icon_image[config.is_night], DEF_DRAW_NO_COLOR, 260, 170, 60, 60);
 #endif //DEF_SEM_ENABLE_ICON
 #ifdef DEF_SEM_ENABLE_NAME
-			Draw_c(DEF_SEM_NAME, 270, 205, FONT_SIZE_SUB_APP_NAME,
-			menu_sem_button.selected ? (config.is_night ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_LIGHT_ACCENT) : color);
+			Menu_draw_app_label(&menu_sem_button, DEF_SEM_NAME, 260, 170, 60, 60);
+#else
+			Menu_draw_app_label(&menu_sem_button, NULL, 260, 170, 60, 60);
 #endif //DEF_SEM_ENABLE_NAME
 
 			if(Util_err_query_show_flag())

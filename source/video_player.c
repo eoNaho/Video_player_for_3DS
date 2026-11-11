@@ -109,14 +109,14 @@
 #define MENU_BOX_Y_END								(double)(MENU_BOX_Y + MENU_BOX_HEIGHT)	//Box Y end offset for menu in px.
 
 #define MENU_CONTROLS_BOX_X							(double)(12)							//Box X offset for controls in px.
-#define MENU_CONTROLS_BOX_Y							(double)(31)							//Box Y offset for controls in px.
+#define MENU_CONTROLS_BOX_Y							(double)(26)							//Box Y offset for controls in px.
 #define MENU_CONTROLS_BOX_WIDTH						(double)(296)							//Box width for controls in px.
-#define MENU_CONTROLS_BOX_HEIGHT					(double)(178)							//Box height for controls in px.
+#define MENU_CONTROLS_BOX_HEIGHT					(double)(188)							//Box height for controls in px.
 
 #define MENU_CONTROLS_ITEM_INITIAL_SPACE_X			(double)(12)							//Initial element spacing for controls (for X direction) in px.
-#define MENU_CONTROLS_ITEM_INITIAL_SPACE_Y			(double)(29)							//Initial element spacing for controls (for Y direction) in px.
+#define MENU_CONTROLS_ITEM_INITIAL_SPACE_Y			(double)(28)							//Initial element spacing for controls (for Y direction) in px.
 #define MENU_CONTROLS_ITEM_SPACE_Y					(double)(1)							//Element spacing for controls (for Y direction) in px.
-#define MENU_CONTROLS_ITEM_HEIGHT					(double)(20)							//Element height for controls in px.
+#define MENU_CONTROLS_ITEM_HEIGHT					(double)(22)							//Element height for controls in px.
 
 #define MENU_SETTING_0_ITEM_SPACE_X	(double)(12)	//Element spacing for setting 0 (for X direction) in px.
 #define MENU_SETTING_0_ITEM_SPACE_Y	(double)(1)	//Element spacing for setting 0 (for Y direction) in px.
@@ -880,6 +880,12 @@ void Vid_hid(const Hid_info* key)
 		vid_player.is_waiting_home_menu = false;
 		vid_player.must_resume_after_home_menu = false;
 	}
+
+	//Any input can change button highlight, scroll offset or selection state, so
+	//schedule one redraw. Vid_main only redraws on demand, without this the UI
+	//would look stale between video frame updates (or fully stale while paused).
+	if(key->is_any_pressed || key->is_any_held || key->is_any_released)
+		Draw_set_refresh_needed(true);
 
 	if(Util_err_query_show_flag())
 		Util_err_main(key);
@@ -1867,7 +1873,6 @@ void Vid_main(void)
 	Watch_handle_bit watch_handle_bit = (DEF_WATCH_HANDLE_BIT_GLOBAL | DEF_WATCH_HANDLE_BIT_VIDEO_PLAYER);
 	Sem_config config = { 0, };
 	Sem_state state = { 0, };
-	bool render_every_frame = false;
 	Vid_eye screen_pos_to_eye[SCREEN_POS_MAX] = { EYE_LEFT, EYE_RIGHT, EYE_LEFT, };
 	Vid_eye screen_pos_to_crop[SCREEN_POS_MAX] = { EYE_LEFT, EYE_RIGHT, EYE_LEFT, };
 
@@ -1876,18 +1881,20 @@ void Vid_main(void)
 	vid_dark_theme = config.is_night;
 	Lib_ui_3ds_set_language(config.lang);
 	Vid_apply_cpu_budget(&state);
-	//A paused frame is static. Leave each display buffer untouched until an input,
-	//watch update or explicit redraw arrives instead of spending a full frame on it.
-	render_every_frame = (bool)(!config.is_eco && vid_player.state != PLAYER_STATE_PAUSE);
+	//Every frame is event-driven: a video frame update, input, watch update or
+	//explicit redraw schedules one C3D frame. Never redraw in a busy loop here,
+	//it steals CPU/GPU from the decode and convert threads and drains battery.
 	color = VID_THEME_COLOR(TEXT);
 	disabled_color = VID_THEME_COLOR(SECONDARY_TEXT);
 	back_color = VID_THEME_COLOR(BACKGROUND);
 
 	if (Lib_ui_3ds_is_open())
 	{
+		//Clear the flag before checking so an input arriving during the check
+		//still schedules a redraw on the next loop instead of being wiped.
+		Draw_set_refresh_needed(false);
 		if (Draw_is_refresh_needed())
 		{
-			Draw_set_refresh_needed(false);
 			Draw_frame_ready();
 			Draw_screen_ready(DRAW_SCREEN_BOTTOM, back_color);
 			Lib_ui_3ds_draw(Lib_library_index(), color, back_color);
@@ -2220,12 +2227,14 @@ void Vid_main(void)
 
 	Vid_control_full_screen();
 
-	if(Util_watch_is_changed(watch_handle_bit) || Draw_is_refresh_needed() || render_every_frame)
+	//Clear the flag before checking so an input arriving right after the check
+	//survives to the next loop instead of being wiped by the clear.
+	Draw_set_refresh_needed(false);
+	if(Util_watch_is_changed(watch_handle_bit) || Draw_is_refresh_needed())
 	{
 		Str_data time_str[2] = { 0, };
 		Str_data format_str = { 0, };
 
-		Draw_set_refresh_needed(false);
 		Util_str_init(&format_str);
 		Draw_frame_ready();
 
@@ -2478,7 +2487,7 @@ void Vid_main(void)
 				bool menu_portuguese = (bool)(strncmp(config.lang, "pt", 2) == 0);
 
 				Draw_screen_ready(DRAW_SCREEN_BOTTOM, back_color);
-				Draw_c(DEF_VID_VER, 0, 0, FONT_SIZE_VER, VID_THEME_COLOR(ACCENT));
+				Draw_with_crop_c(DEF_VID_VER, 0, 0, FONT_SIZE_VER, VID_THEME_COLOR(SECONDARY_TEXT), DRAW_X_ALIGN_RIGHT, DRAW_Y_ALIGN_TOP, 316, 14);
 				if (vid_player.state != PLAYER_STATE_IDLE && vid_player.file.name[0] != 0x00)
 				{
 					char display_title[MAX_FILE_NAME_LENGTH] = { 0, };
@@ -3330,20 +3339,20 @@ void Vid_main(void)
 				{
 					bool portuguese = (bool)(strncmp(config.lang, "pt", 2) == 0);
 					Draw_with_background_c(portuguese ? "CENTRO" : "CENTER",
-					138, 194, UI_THEME_FONT_BUTTON,
+					138, 192, UI_THEME_FONT_BUTTON,
 					vid_player.center_video_hud_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
-					DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 72, 22,
+					DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 72, UI_THEME_TOUCH_MIN,
 					DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.center_video_hud_button,
 					vid_player.center_video_hud_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
-					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 138, 194, 3, 22);
+					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 138, 192, 3, UI_THEME_TOUCH_MIN);
 					Draw_with_background_c(portuguese ? (vid_player.fill_screen ? "AJUSTAR" : "PREENC.")
 					: (vid_player.fill_screen ? "FIT" : "FILL"),
-					214, 194, UI_THEME_FONT_BUTTON,
+					214, 192, UI_THEME_FONT_BUTTON,
 					vid_player.fill_screen_hud_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
-					DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 98, 22,
+					DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 98, UI_THEME_TOUCH_MIN,
 					DRAW_BACKGROUND_ENTIRE_BOX, &vid_player.fill_screen_hud_button,
 					vid_player.fill_screen_hud_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE));
-					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 214, 194, 3, 22);
+					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 214, 192, 3, UI_THEME_TOUCH_MIN);
 				}
 				else
 				{
@@ -3355,8 +3364,15 @@ void Vid_main(void)
 
 				Draw_texture(&vid_player.seek_bar, VID_THEME_COLOR(SURFACE), 5, 216, 310, 24);
 				if(vid_player.media_duration != 0)
-					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 5, 225,
-					(310 * (current_bar_pos / DEF_UTIL_MS_TO_S_D(vid_player.media_duration))), 6);
+				{
+					double bar_width = (310 * (current_bar_pos / DEF_UTIL_MS_TO_S_D(vid_player.media_duration)));
+
+					if(bar_width > 310)
+						bar_width = 310;
+					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 5, 224, bar_width, 8);
+					//Position knob so the exact playhead is visible on the 24px rail.
+					Draw_texture(&background, VID_THEME_COLOR(ACCENT), (5 + bar_width - 2), 220, 4, 16);
+				}
 
 				if(vid_player.is_selecting_audio_track)
 				{
@@ -3648,12 +3664,12 @@ static void Vid_draw_bottom_tabs(Vid_menu active_menu, bool portuguese)
 		float x = (float)i * 110;
 		Draw_texture(&vid_player.menu_button[menus[i]],
 		selected ? VID_THEME_COLOR(SURFACE_ALT) : VID_THEME_COLOR(SURFACE),
-		x, 170, 100, UI_THEME_TOUCH_MIN);
+		x, 168, 100, UI_THEME_TOUCH_MIN);
 		Draw_align_c(portuguese ? portuguese_labels[i] : english_labels[i],
-		x + 2, 170, UI_THEME_FONT_BUTTON, VID_THEME_COLOR(TEXT),
+		x + 2, 168, UI_THEME_FONT_BUTTON, VID_THEME_COLOR(TEXT),
 		DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 96, UI_THEME_TOUCH_MIN);
 		if (selected)
-			Draw_texture(&background, VID_THEME_COLOR(ACCENT), x + 2, 191, 96, 3);
+			Draw_texture(&background, VID_THEME_COLOR(ACCENT), x + 2, 168 + UI_THEME_TOUCH_MIN - 3, 96, 3);
 	}
 }
 
@@ -5556,7 +5572,7 @@ void Vid_decode_thread(void* arg)
 						DEF_LOG_RESULT_SMART(result, Util_queue_add(&vid_player.decode_thread_command_queue, DECODE_THREAD_SEEK_REQUEST,
 						NULL, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_DO_NOT_ADD_IF_EXIST), (result == DEF_SUCCESS), result);
 
-						Util_sleep(1000);
+						Util_sleep(5000);
 						break;
 					}
 
@@ -6117,8 +6133,10 @@ void Vid_decode_thread(void* arg)
 
 				if(is_waiting_video_decoder)
 				{
-					//Wait for video decoder thread.
-					Util_sleep(1000);
+					//Wait for video decoder thread. 5ms is enough: this only adds
+					//a small delay before forwarding the next packet, and polling
+					//at 1 kHz burns core 0 (shared with HID and decode threads).
+					Util_sleep(5000);
 					continue;
 				}
 				else if((num_of_audio_buffers + 1) >= DEF_SPEAKER_MAX_BUFFERS)
@@ -6436,6 +6454,8 @@ void Vid_decode_thread(void* arg)
 					Util_decoder_skip_video_packet(packet_index, DEF_VID_DECODER_SESSION_ID);
 			}
 		}
+		else if(vid_player.state == PLAYER_STATE_IDLE)
+			Util_sleep(100000);//Nothing to decode while idle, don't burn CPU.
 		else
 			Util_sleep(1000);
 	}
@@ -7118,6 +7138,8 @@ void Vid_convert_thread(void* arg)
 				NULL, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_NONE), (result == DEF_SUCCESS), result);
 			}
 		}
+		else if(vid_player.state == PLAYER_STATE_PAUSE)
+			Util_sleep(100000);//Nothing to convert while paused, don't burn CPU.
 		else
 			Util_sleep(1000);
 	}

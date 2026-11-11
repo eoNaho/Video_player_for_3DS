@@ -74,6 +74,7 @@ static bool Lib_ui_3ds_same_title(const char* a, const char* b);
 #define LIB_UI_3DS_COLOR_ACCENT		(library_ui_dark_theme ? UI_THEME_COLOR_ACCENT : UI_THEME_COLOR_LIGHT_ACCENT)
 #define LIB_UI_3DS_COLOR_TEXT			(library_ui_dark_theme ? UI_THEME_COLOR_TEXT : UI_THEME_COLOR_LIGHT_TEXT)
 #define LIB_UI_3DS_COLOR_SECONDARY	(library_ui_dark_theme ? UI_THEME_COLOR_SECONDARY_TEXT : UI_THEME_COLOR_LIGHT_SECONDARY_TEXT)
+#define LIB_UI_3DS_COLOR_SELECTED_BG	(library_ui_dark_theme ? UI_THEME_COLOR_SELECTED_BG : UI_THEME_COLOR_LIGHT_SELECTED_BG)
 #define LIB_UI_3DS_COLOR_RAIL_OFF		(library_ui_dark_theme ? UI_THEME_COLOR_RAIL_OFF : UI_THEME_COLOR_LIGHT_RAIL_OFF)
 
 static void Lib_ui_3ds_request_redraw(void)
@@ -1239,8 +1240,8 @@ uint32_t text_color, bool* may_decode)
 	{
 		Draw_image_data background = Draw_get_empty_image();
 		bool selected = (bool)(library_ui.offset + slot == library_ui.cursor);
-		Draw_texture(&background, selected ? LIB_UI_3DS_COLOR_SURFACE_ALT
-		: ((slot & 1) ? LIB_UI_3DS_COLOR_SURFACE : LIB_UI_3DS_COLOR_SURFACE_ALT),
+		Draw_texture(&background, selected ? LIB_UI_3DS_COLOR_SELECTED_BG
+		: ((slot & 1) ? LIB_UI_3DS_COLOR_SURFACE_ALT : LIB_UI_3DS_COLOR_SURFACE),
 		LIB_UI_3DS_LIST_ROW_X, y, LIB_UI_3DS_LIST_ROW_WIDTH, LIB_UI_3DS_LIST_ROW_HEIGHT - 1);
 		if (selected)
 			Draw_texture(&background, LIB_UI_3DS_COLOR_ACCENT, LIB_UI_3DS_LIST_ROW_X,
@@ -1291,11 +1292,11 @@ uint32_t text_color, bool* may_decode)
 	LIB_UI_3DS_GRID_CELL_WIDTH - 71, 30);
 	Lib_ui_3ds_format_meta(index, item, meta, sizeof(meta), false);
 	Draw_with_crop_c(meta, x + 66, y + 42,
-	UI_THEME_FONT_CAPTION, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
+	UI_THEME_FONT_CAPTION, LIB_UI_3DS_COLOR_SECONDARY, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
 	LIB_UI_3DS_GRID_CELL_WIDTH - 71, 24);
 	if (item->flags & LIB_ITEM_FLAG_FAVORITE)
 		Draw_with_crop_c(Lib_ui_3ds_text("FAVORITE", "FAVORITO"), x + 66, y + 67,
-		UI_THEME_FONT_CAPTION, row_color, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
+		UI_THEME_FONT_CAPTION, LIB_UI_3DS_COLOR_ACCENT, DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP,
 		LIB_UI_3DS_GRID_CELL_WIDTH - 71, 12);
 }
 
@@ -1348,8 +1349,8 @@ bool* may_decode_thumbnail)
 		{
 			Draw_image_data background = Draw_get_empty_image();
 			bool selected = (position == library_queue_cursor);
-			Draw_texture(&background, selected ? LIB_UI_3DS_COLOR_SURFACE_ALT
-			: ((row & 1) ? LIB_UI_3DS_COLOR_SURFACE : LIB_UI_3DS_COLOR_SURFACE_ALT),
+			Draw_texture(&background, selected ? LIB_UI_3DS_COLOR_SELECTED_BG
+			: ((row & 1) ? LIB_UI_3DS_COLOR_SURFACE_ALT : LIB_UI_3DS_COLOR_SURFACE),
 			LIB_UI_3DS_LIST_ROW_X, y, LIB_UI_3DS_LIST_ROW_WIDTH, LIB_UI_3DS_LIST_ROW_HEIGHT - 1);
 			if (selected)
 				Draw_texture(&background, LIB_UI_3DS_COLOR_ACCENT, LIB_UI_3DS_LIST_ROW_X,
@@ -1445,6 +1446,11 @@ uint32_t background_color)
 	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.filter == LIB_UI_FILTER_SERIES);
 	Lib_ui_3ds_draw_button(Lib_ui_3ds_text("FAV", "FAV."), 4, 5,
 	LIB_UI_3DS_BUTTON_ROW_0_Y, text_color, library_ui.tab == LIB_VIEW_TAB_FAVORITES);
+
+	//Separate the navigation row from the actions row so the two white bars read
+	//as two groups instead of one long strip.
+	Draw_texture(&background, LIB_UI_3DS_COLOR_RAIL_OFF, 0,
+	LIB_UI_3DS_BUTTON_ROW_1_Y - 1, 320, 1);
 
 	Lib_ui_3ds_draw_button((library_ui.filter == LIB_UI_FILTER_SERIES
 	&& library_ui.level != LIB_UI_LEVEL_ROOT)

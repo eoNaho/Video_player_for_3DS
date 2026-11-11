@@ -52,6 +52,19 @@ redesenho sob demanda da biblioteca, espera de VBlank em tela estática e pausa 
 250 ms entre tarefas ociosas da biblioteca. Esses valores descrevem a política do
 código; ainda não medem consumo real nem comprovam ganho de autonomia.
 
+## Otimizações de renderização (commit atual, medição pendente)
+
+Mudanças no código ainda sem números no console; registrar antes/depois com a
+tabela de vídeos de referência:
+
+| Mudança | O que deveria melhorar | Antes | Depois |
+| --- | --- | --- | --- |
+| Player 100% dirigido a eventos (sem `render_every_frame`): redraw só em quadro novo, entrada ou watch | Bateria e engasgo fora do eco; antes o loop redesenhava as duas telas sem esperar VBlank | fps do vídeo, %/30 min | |
+| Garantia de `refresh_needed` na entrada (`Vid_hid`, `Util_expl_main`) | UI responde ao toque no modo Economia (antes dependia do loop desenfreado) | lag percebido | |
+| Limpar flag de redraw antes de checar (TOCTOU) | Toque perdido durante o redesenho não é mais engolido | contagem de toques sem reação | |
+| Espera de decodificador 1 ms → 5 ms no decode thread | Menos churn de contexto no núcleo 0 (Old 3DS) | fps, bateria | |
+| Convert/decode threads dormem 100 ms em pausa/idle | Bateria com vídeo pausado e no menu | %/30 min em pausa | |
+
 ## Metas
 
 - Biblioteca abre sem tela de carregamento perceptível com índice em cache.

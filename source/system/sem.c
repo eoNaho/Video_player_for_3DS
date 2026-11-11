@@ -3932,8 +3932,12 @@ static void Sem_get_system_info(void)
 		state.free_linear_ram = Util_check_free_linear_space();
 	}
 
-	snprintf(state.msg, sizeof(state.msg), "%02" PRIu32 "fps %04" PRIu16 "/%02" PRIu8 "/%02" PRIu8 " %02" PRIu8 ":%02" PRIu8 ":%02" PRIu8 " ",
-	(uint32_t)Draw_query_fps(), state.time.years, state.time.months, state.time.days, state.time.hours, state.time.minutes, state.time.seconds);
+	//The fps/date status strip is diagnostic noise; show it only in debug mode.
+	if (config.is_debug)
+		snprintf(state.msg, sizeof(state.msg), "%02" PRIu32 "fps %04" PRIu16 "/%02" PRIu8 "/%02" PRIu8 " %02" PRIu8 ":%02" PRIu8 ":%02" PRIu8 " ",
+		(uint32_t)Draw_query_fps(), state.time.years, state.time.months, state.time.days, state.time.hours, state.time.minutes, state.time.seconds);
+	else
+		state.msg[0] = 0x00;
 
 	Util_sync_lock(&sem_config_state_mutex, UINT64_MAX);
 	sem_state = state;

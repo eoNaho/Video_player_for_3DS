@@ -473,6 +473,11 @@ void Util_expl_main(const Hid_info* key, double scroll_speed)
 		return;
 	}
 
+	//Any input can change selection highlight or scroll offset, so schedule one
+	//redraw (expl state changes are otherwise not watched by callers).
+	if(key->is_any_pressed || key->is_any_held || key->is_any_released)
+		Draw_set_refresh_needed(true);
+
 	//Notify user that button is being pressed.
 	if (!util_expl_read_dir_request)
 	{

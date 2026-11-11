@@ -19,8 +19,10 @@ as color.
 - **Selected text:** dark charcoal (`0xFF242011`) when an accent fill is used.
 - **Typography:** 14 px body, 11.5 px compact captions and controls, 15 px headings.
 - **Touch targets:** at least 24 px high where the display allows it.
-- In light mode, the library keeps the same layout and rails with warm white
-  surfaces, dark text, and a deeper teal accent.
+- In light mode, the library keeps the same layout and rails on a deeper cool
+  gray ground (`0xFFD3DADE`) so white surfaces read as cards, with dark text
+  (`0xFF212528`), a deep teal accent (`0xFF006668`), a pale teal selected fill
+  (`0xFFCFE0E1`), and muted secondary text (`0xFF565D62`).
 
 ## State language
 
