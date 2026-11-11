@@ -61,7 +61,7 @@ tabela de vídeos de referência:
 | --- | --- | --- | --- |
 | Player 100% dirigido a eventos (sem `render_every_frame`): redraw só em quadro novo, entrada ou watch | Bateria e engasgo fora do eco; antes o loop redesenhava as duas telas sem esperar VBlank | fps do vídeo, %/30 min | |
 | Garantia de `refresh_needed` na entrada (`Vid_hid`, `Util_expl_main`) | UI responde ao toque no modo Economia (antes dependia do loop desenfreado) | lag percebido | |
-| Limpar flag de redraw antes de checar (TOCTOU) | Toque perdido durante o redesenho não é mais engolido | contagem de toques sem reação | |
+| Correção: checar flag de redraw antes de limpar (`Vid_main`, biblioteca) | Regressão da iteração anterior: limpar antes de checar engolia o flag de todo input e a UI só atualizava 1×/s (timer de 1000 ms). Padrão correto: checa → limpa → desenha, igual a `sem.c`/`menu.c`/`ftp_daemon.c` | lag percebido | |
 | Espera de decodificador 1 ms → 5 ms no decode thread | Menos churn de contexto no núcleo 0 (Old 3DS) | fps, bateria | |
 | Convert/decode threads dormem 100 ms em pausa/idle | Bateria com vídeo pausado e no menu | %/30 min em pausa | |
 

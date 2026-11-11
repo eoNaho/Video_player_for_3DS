@@ -1890,11 +1890,11 @@ void Vid_main(void)
 
 	if (Lib_ui_3ds_is_open())
 	{
-		//Clear the flag before checking so an input arriving during the check
-		//still schedules a redraw on the next loop instead of being wiped.
-		Draw_set_refresh_needed(false);
+		//Check first, then clear: clearing before the check would wipe the
+		//redraw that any input scheduled since the previous loop iteration.
 		if (Draw_is_refresh_needed())
 		{
+			Draw_set_refresh_needed(false);
 			Draw_frame_ready();
 			Draw_screen_ready(DRAW_SCREEN_BOTTOM, back_color);
 			Lib_ui_3ds_draw(Lib_library_index(), color, back_color);
@@ -2227,11 +2227,11 @@ void Vid_main(void)
 
 	Vid_control_full_screen();
 
-	//Clear the flag before checking so an input arriving right after the check
-	//survives to the next loop instead of being wiped by the clear.
-	Draw_set_refresh_needed(false);
+	//Check first, then clear: clearing before the check would wipe the redraw
+	//that any input scheduled since the previous loop iteration.
 	if(Util_watch_is_changed(watch_handle_bit) || Draw_is_refresh_needed())
 	{
+		Draw_set_refresh_needed(false);
 		Str_data time_str[2] = { 0, };
 		Str_data format_str = { 0, };
 

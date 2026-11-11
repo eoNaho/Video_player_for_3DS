@@ -513,9 +513,18 @@ char* episode_title_out, size_t episode_title_size, Lib_name_info* info)
 		}
 		else if (has_parent_folder && folder_title[0] != 0x00)
 		{
-			Lib_name_copy(folder_title, 0, strlen(folder_title), title_out, title_size);
+			size_t rest = (has_episode || has_episode_name) ? marker_end : base_length;
+
+			while (rest < base_length && (base[rest] == ' ' || base[rest] == '-'))
+				rest++;
+			//When the marker consumed the whole filename, the folder name would
+			//give every sibling file the same title; keep the file's own name.
+			if (rest >= base_length)
+				folder_title[0] = 0x00;
+			if (folder_title[0] != 0x00)
+				Lib_name_copy(folder_title, 0, strlen(folder_title), title_out, title_size);
 		}
-		else
+		if (title_out[0] == 0x00 && title_end <= title_start)
 		{
 			//For a marker without a show folder/name, retain the episode's own title.
 			title_start = has_episode || has_episode_name ? marker_end : 0;
