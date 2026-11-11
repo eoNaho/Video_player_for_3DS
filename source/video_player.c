@@ -46,6 +46,9 @@
 //Defines.
 #define VIDEO_BUFFERS								(uint8_t)(4)
 #define SUBTITLE_BUFFERS							(uint8_t)(16)
+#define TRACK_SELECTION_VISIBLE_ROWS				(uint8_t)(7)
+#define TRACK_SELECTION_ROW_HEIGHT				(float)(16)
+#define TRACK_SELECTION_FIRST_ROW_Y				(float)(48)
 #define MAX_FILE_NAME_LENGTH						(uint16_t)(256)
 #define MAX_PATH_LENGTH								(uint16_t)(8192)
 
@@ -672,6 +675,7 @@ typedef struct
 	//Audio.
 	uint8_t num_of_audio_tracks;					//Number of audio tracks for current file.
 	uint8_t selected_audio_track_cache;				//Selected audio track cache, this is used when user is selecting audio track.
+	uint8_t audio_track_offset;						//First visible audio track in the selector.
 	uint8_t selected_audio_track;					//Selected audio track.
 	double audio_current_pos;						//Current audio position in ms.
 	double last_decoded_audio_pos;					//Latest decoded audio position in ms.
@@ -680,6 +684,7 @@ typedef struct
 	//Subtitle.
 	uint8_t num_of_subtitle_tracks;					//Number of subtitle tracks for current file.
 	uint8_t selected_subtitle_track_cache;			//Selected subtitle track cache, this is used when user is selecting audio track.
+	uint8_t subtitle_track_offset;					//First visible subtitle track in the selector.
 	uint8_t selected_subtitle_track;				//Selected subtitle track.
 	uint8_t subtitle_index;							//Next subtitle index for subtitle_data.
 	double subtitle_x_offset;						//X (horizontal) offset for subtitle.
@@ -741,6 +746,8 @@ typedef struct
 	Sync_data library_queue_lock;
 	Sync_data texture_init_free_lock;				//Mutex for initializing and freeing texture buffers.
 	Sync_data delay_update_lock;					//Mutex for updating video delay information.
+	Sync_data video_packet_cond;					//Condition variable signalled when the video decoder thread copies a packet.
+	Sync_data video_packet_lock;					//Mutex guarding the video packet handoff wait.
 } Vid_player;
 
 //Prototypes.
@@ -1103,11 +1110,15 @@ void Vid_hid(const Hid_info* key)
 			{
 				if((vid_player.num_of_audio_tracks - vid_player.selected_audio_track_cache) > 1)
 					vid_player.selected_audio_track_cache++;
+				if(vid_player.selected_audio_track_cache >= vid_player.audio_track_offset + TRACK_SELECTION_VISIBLE_ROWS)
+					vid_player.audio_track_offset = vid_player.selected_audio_track_cache - TRACK_SELECTION_VISIBLE_ROWS + 1;
 			}
 			else if(HID_A_TRACK_PRE_ITEM_CFM(*key))
 			{
 				if(vid_player.selected_audio_track_cache > 0)
 					vid_player.selected_audio_track_cache--;
+				if(vid_player.selected_audio_track_cache < vid_player.audio_track_offset)
+					vid_player.audio_track_offset = vid_player.selected_audio_track_cache;
 			}
 			else if(HID_A_TRACK_CONFIRM_CFM(*key))
 			{
@@ -1119,7 +1130,8 @@ void Vid_hid(const Hid_info* key)
 				NULL, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_DO_NOT_ADD_IF_EXIST), (result == DEF_SUCCESS), result);
 			}
 
-			for(uint8_t i = 0; i < vid_player.num_of_audio_tracks; i++)
+			for(uint8_t i = vid_player.audio_track_offset;
+			i < vid_player.num_of_audio_tracks && i < vid_player.audio_track_offset + TRACK_SELECTION_VISIBLE_ROWS; i++)
 			{
 				if(HID_A_TRACK_ITEM_CFM(*key, i))
 				{
@@ -1134,11 +1146,15 @@ void Vid_hid(const Hid_info* key)
 			{
 				if((vid_player.num_of_subtitle_tracks - vid_player.selected_subtitle_track_cache) > 1)
 					vid_player.selected_subtitle_track_cache++;
+				if(vid_player.selected_subtitle_track_cache >= vid_player.subtitle_track_offset + TRACK_SELECTION_VISIBLE_ROWS)
+					vid_player.subtitle_track_offset = vid_player.selected_subtitle_track_cache - TRACK_SELECTION_VISIBLE_ROWS + 1;
 			}
 			else if(HID_S_TRACK_PRE_ITEM_CFM(*key))
 			{
 				if(vid_player.selected_subtitle_track_cache > 0)
 					vid_player.selected_subtitle_track_cache--;
+				if(vid_player.selected_subtitle_track_cache < vid_player.subtitle_track_offset)
+					vid_player.subtitle_track_offset = vid_player.selected_subtitle_track_cache;
 			}
 			else if(HID_S_TRACK_CONFIRM_CFM(*key))
 			{
@@ -1150,7 +1166,8 @@ void Vid_hid(const Hid_info* key)
 				NULL, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_DO_NOT_ADD_IF_EXIST), (result == DEF_SUCCESS), result);
 			}
 
-			for(uint8_t i = 0; i < vid_player.num_of_subtitle_tracks; i++)
+			for(uint8_t i = vid_player.subtitle_track_offset;
+			i < vid_player.num_of_subtitle_tracks && i < vid_player.subtitle_track_offset + TRACK_SELECTION_VISIBLE_ROWS; i++)
 			{
 				if(HID_S_TRACK_ITEM_CFM(*key, i))
 				{
@@ -1274,9 +1291,23 @@ void Vid_hid(const Hid_info* key)
 						Util_hid_reset_key_state(HID_KEY_BIT_ALL);
 					}
 					else if(HID_SE0_A_TRACK_SELECTION_CFM(*key))//Audio track button.
+					{
 						vid_player.is_selecting_audio_track = !vid_player.is_selecting_audio_track;
+						if (vid_player.is_selecting_audio_track)
+						{
+							vid_player.audio_track_offset = (vid_player.selected_audio_track_cache >= TRACK_SELECTION_VISIBLE_ROWS)
+							? (vid_player.selected_audio_track_cache - TRACK_SELECTION_VISIBLE_ROWS + 1) : 0;
+						}
+					}
 					else if(HID_SE0_S_TRACK_SELECTION_CFM(*key))//Subtitle track button.
+					{
 						vid_player.is_selecting_subtitle_track = !vid_player.is_selecting_subtitle_track;
+						if (vid_player.is_selecting_subtitle_track)
+						{
+							vid_player.subtitle_track_offset = (vid_player.selected_subtitle_track_cache >= TRACK_SELECTION_VISIBLE_ROWS)
+							? (vid_player.selected_subtitle_track_cache - TRACK_SELECTION_VISIBLE_ROWS + 1) : 0;
+						}
+					}
 					else if(HID_SE0_TEXTURE_FILTER_CFM(*key))//Texture filter button.
 					{
 						vid_player.use_linear_texture_filter = !vid_player.use_linear_texture_filter;
@@ -3378,11 +3409,19 @@ void Vid_main(void)
 				{
 					Draw_texture(&background, VID_THEME_COLOR(BACKGROUND), 28, 18, 264, 184);
 					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 28, 18, 3, 184);
-					Draw(&vid_msg[MSG_AUDIO_TRACK_DESCRIPTION], 36, 24, FONT_SIZE_TRACK_SELECTION_TITLE, VID_THEME_COLOR(TEXT));
-
-					for(uint8_t i = 0; i < vid_player.num_of_audio_tracks; i++)
+					Util_str_format(&format_str, "%s  %" PRIu8 "/%" PRIu8,
+					DEF_STR_NEVER_NULL(&vid_msg[MSG_AUDIO_TRACK_DESCRIPTION]),
+					(uint8_t)(vid_player.selected_audio_track_cache + 1), vid_player.num_of_audio_tracks);
+					Draw(&format_str, 36, 24, FONT_SIZE_TRACK_SELECTION_TITLE, VID_THEME_COLOR(TEXT));
+					for (uint8_t i = 0; i < vid_player.num_of_audio_tracks; i++)
 					{
-						double row_y = 48 + (i * 16);
+						vid_player.audio_track_button[i].x_size = -1;
+						vid_player.audio_track_button[i].y_size = -1;
+					}
+					for(uint8_t i = vid_player.audio_track_offset;
+					i < vid_player.num_of_audio_tracks && i < vid_player.audio_track_offset + TRACK_SELECTION_VISIBLE_ROWS; i++)
+					{
+						double row_y = TRACK_SELECTION_FIRST_ROW_Y + ((i - vid_player.audio_track_offset) * TRACK_SELECTION_ROW_HEIGHT);
 						uint32_t row_color = (i == vid_player.selected_audio_track_cache ? VID_THEME_COLOR(SURFACE_ALT) : VID_THEME_COLOR(SURFACE));
 						Util_str_format(&format_str, "Track %" PRIu8 "(Lang:%s)", i, vid_player.audio_info[i].track_lang);
 						if (vid_player.audio_track_button[i].selected)
@@ -3394,6 +3433,10 @@ void Vid_main(void)
 						vid_player.audio_track_button[i].selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
 						DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, 236, 14);
 					}
+					if (vid_player.audio_track_offset > 0)
+						Draw_align_c("^", 276, 43, FONT_SIZE_OK_BUTTON, VID_THEME_COLOR(ACCENT), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 12, 12);
+					if (vid_player.audio_track_offset + TRACK_SELECTION_VISIBLE_ROWS < vid_player.num_of_audio_tracks)
+						Draw_align_c("v", 276, 157, FONT_SIZE_OK_BUTTON, VID_THEME_COLOR(ACCENT), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 12, 12);
 
 					Draw_texture(&vid_player.audio_track_ok_button, vid_player.audio_track_ok_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE_ALT), 128, 176, 64, 22);
 					Draw_align_c("OK", 128, 176, FONT_SIZE_OK_BUTTON, vid_player.audio_track_ok_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
@@ -3404,11 +3447,19 @@ void Vid_main(void)
 				{
 					Draw_texture(&background, VID_THEME_COLOR(BACKGROUND), 28, 18, 264, 184);
 					Draw_texture(&background, VID_THEME_COLOR(ACCENT), 28, 18, 3, 184);
-					Draw(&vid_msg[MSG_SUBTITLE_TRACK_DESCRIPTION], 36, 24, FONT_SIZE_TRACK_SELECTION_TITLE, VID_THEME_COLOR(TEXT));
-
-					for(uint8_t i = 0; i < vid_player.num_of_subtitle_tracks; i++)
+					Util_str_format(&format_str, "%s  %" PRIu8 "/%" PRIu8,
+					DEF_STR_NEVER_NULL(&vid_msg[MSG_SUBTITLE_TRACK_DESCRIPTION]),
+					(uint8_t)(vid_player.selected_subtitle_track_cache + 1), vid_player.num_of_subtitle_tracks);
+					Draw(&format_str, 36, 24, FONT_SIZE_TRACK_SELECTION_TITLE, VID_THEME_COLOR(TEXT));
+					for (uint8_t i = 0; i < vid_player.num_of_subtitle_tracks; i++)
 					{
-						double row_y = 48 + (i * 16);
+						vid_player.subtitle_track_button[i].x_size = -1;
+						vid_player.subtitle_track_button[i].y_size = -1;
+					}
+					for(uint8_t i = vid_player.subtitle_track_offset;
+					i < vid_player.num_of_subtitle_tracks && i < vid_player.subtitle_track_offset + TRACK_SELECTION_VISIBLE_ROWS; i++)
+					{
+						double row_y = TRACK_SELECTION_FIRST_ROW_Y + ((i - vid_player.subtitle_track_offset) * TRACK_SELECTION_ROW_HEIGHT);
 						uint32_t row_color = (i == vid_player.selected_subtitle_track_cache ? VID_THEME_COLOR(SURFACE_ALT) : VID_THEME_COLOR(SURFACE));
 						Util_str_format(&format_str, "Track %" PRIu8 "(Lang:%s)", i, vid_player.subtitle_info[i].track_lang);
 						if (vid_player.subtitle_track_button[i].selected)
@@ -3420,6 +3471,10 @@ void Vid_main(void)
 						vid_player.subtitle_track_button[i].selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
 						DRAW_X_ALIGN_LEFT, DRAW_Y_ALIGN_TOP, 236, 14);
 					}
+					if (vid_player.subtitle_track_offset > 0)
+						Draw_align_c("^", 276, 43, FONT_SIZE_OK_BUTTON, VID_THEME_COLOR(ACCENT), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 12, 12);
+					if (vid_player.subtitle_track_offset + TRACK_SELECTION_VISIBLE_ROWS < vid_player.num_of_subtitle_tracks)
+						Draw_align_c("v", 276, 157, FONT_SIZE_OK_BUTTON, VID_THEME_COLOR(ACCENT), DRAW_X_ALIGN_CENTER, DRAW_Y_ALIGN_CENTER, 12, 12);
 
 					Draw_texture(&vid_player.subtitle_track_ok_button, vid_player.subtitle_track_ok_button.selected ? VID_THEME_COLOR(ACCENT) : VID_THEME_COLOR(SURFACE_ALT), 128, 176, 64, 22);
 					Draw_align_c("OK", 128, 176, FONT_SIZE_OK_BUTTON, vid_player.subtitle_track_ok_button.selected ? VID_THEME_COLOR(SELECTED_TEXT) : VID_THEME_COLOR(TEXT),
@@ -4370,6 +4425,7 @@ static void Vid_init_audio_data(void)
 {
 	vid_player.num_of_audio_tracks = 0;
 	vid_player.selected_audio_track_cache = 0;
+	vid_player.audio_track_offset = 0;
 	vid_player.selected_audio_track = 0;
 	vid_player.audio_current_pos = 0;
 	vid_player.last_decoded_audio_pos = 0;
@@ -4394,6 +4450,7 @@ static void Vid_init_subtitle_data(void)
 {
 	vid_player.num_of_subtitle_tracks = 0;
 	vid_player.selected_subtitle_track_cache = 0;
+	vid_player.subtitle_track_offset = 0;
 	vid_player.selected_subtitle_track = 0;
 	vid_player.subtitle_index = 0;
 	vid_player.subtitle_x_offset = 0;
@@ -4719,6 +4776,8 @@ void Vid_init_thread(void* arg)
 	DEF_LOG_RESULT_SMART(result, Util_sync_create(&vid_player.library_queue_lock, SYNC_TYPE_NON_RECURSIVE_MUTEX), (result == DEF_SUCCESS), result);
 	DEF_LOG_RESULT_SMART(result, Util_sync_create(&vid_player.texture_init_free_lock, SYNC_TYPE_NON_RECURSIVE_MUTEX), (result == DEF_SUCCESS), result);
 	DEF_LOG_RESULT_SMART(result, Util_sync_create(&vid_player.delay_update_lock, SYNC_TYPE_NON_RECURSIVE_MUTEX), (result == DEF_SUCCESS), result);
+	DEF_LOG_RESULT_SMART(result, Util_sync_create(&vid_player.video_packet_cond, SYNC_TYPE_CONDITION), (result == DEF_SUCCESS), result);
+	DEF_LOG_RESULT_SMART(result, Util_sync_create(&vid_player.video_packet_lock, SYNC_TYPE_NON_RECURSIVE_MUTEX), (result == DEF_SUCCESS), result);
 
 	vid_player.banner_texture_handle = UINT32_MAX;
 
@@ -5042,6 +5101,8 @@ void Vid_exit_thread(void* arg)
 	Util_sync_destroy(&vid_player.texture_init_free_lock);
 	Util_sync_destroy(&vid_player.delay_update_lock);
 	Util_sync_destroy(&vid_player.library_queue_lock);
+	Util_sync_destroy(&vid_player.video_packet_cond);
+	Util_sync_destroy(&vid_player.video_packet_lock);
 
 	vid_player.inited = false;
 
@@ -6133,10 +6194,16 @@ void Vid_decode_thread(void* arg)
 
 				if(is_waiting_video_decoder)
 				{
-					//Wait for video decoder thread. 5ms is enough: this only adds
-					//a small delay before forwarding the next packet, and polling
-					//at 1 kHz burns core 0 (shared with HID and decode threads).
-					Util_sleep(5000);
+					//Wait for the video decoder thread to copy the packet. The copy
+					//thread signals the condition as soon as it is done, so there is
+					//no per-packet poll delay here (a fixed sleep throttles the whole
+					//pipeline: at 30 fps a 5 ms poll steals ~150 ms of decode time
+					//per second of video and starves the packet cache). The timeout
+					//is only a safety net for a stalled decoder thread.
+					Util_sync_lock(&vid_player.video_packet_lock, UINT64_MAX);
+					if(is_waiting_video_decoder)
+						Util_sync_cond_wait(&vid_player.video_packet_cond, &vid_player.video_packet_lock, 5000);
+					Util_sync_unlock(&vid_player.video_packet_lock);
 					continue;
 				}
 				else if((num_of_audio_buffers + 1) >= DEF_SPEAKER_MAX_BUFFERS)
@@ -6521,6 +6588,9 @@ void Vid_decode_video_thread(void* arg)
 						NULL, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_NONE);
 						if(result != DEF_SUCCESS)
 							DEF_LOG_RESULT(Util_queue_add, false, result);
+						//Wake the decode thread so it can forward the next packet
+						//without polling (frame skipped here).
+						Util_sync_cond_signal(&vid_player.video_packet_cond, false);
 					}
 					else
 					{
@@ -6537,6 +6607,9 @@ void Vid_decode_video_thread(void* arg)
 						NULL, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_NONE);
 						if(queue_result != DEF_SUCCESS)
 							DEF_LOG_RESULT(Util_queue_add, false, queue_result);
+						//Wake the decode thread so it can forward the next packet
+						//without polling.
+						Util_sync_cond_signal(&vid_player.video_packet_cond, false);
 
 						if(result == DEF_SUCCESS)
 						{
@@ -7137,6 +7210,10 @@ void Vid_convert_thread(void* arg)
 				DEF_LOG_RESULT_SMART(result, Util_queue_add(&vid_player.decode_thread_notification_queue, CONVERT_THREAD_FINISHED_BUFFERING_NOTIFICATION,
 				NULL, QUEUE_OP_TIMEOUT_US, QUEUE_OPTION_NONE), (result == DEF_SUCCESS), result);
 			}
+			else
+				//Nothing to convert while buffering; a busy loop here steals core 1
+				//from the read packet thread and slows down the refill itself.
+				Util_sleep(10000);
 		}
 		else if(vid_player.state == PLAYER_STATE_PAUSE)
 			Util_sleep(100000);//Nothing to convert while paused, don't burn CPU.
